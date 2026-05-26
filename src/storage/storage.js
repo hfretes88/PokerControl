@@ -56,6 +56,34 @@ export async function createSession(name) {
   return newSession;
 }
 
+/**
+ * Crea una sesión con jugadores y sus compras iniciales en un solo paso.
+ * entries: [{ player: { id, name }, amount: number }]
+ */
+export async function createSessionWithBuys(name, entries) {
+  const sessions = await getSessions();
+  const now = new Date().toISOString();
+  const participants = entries
+    .filter(e => e.player && e.amount > 0)
+    .map(e => ({
+      playerId: e.player.id,
+      name: e.player.name,
+      buys: [{ amount: Number(e.amount), timestamp: now }],
+      finalAmount: null,
+    }));
+
+  const newSession = {
+    id: Date.now().toString(),
+    name: name.trim(),
+    createdAt: now,
+    status: 'active',
+    participants,
+  };
+  sessions.unshift(newSession);
+  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+  return newSession;
+}
+
 export async function closeSession(sessionId) {
   const sessions = await getSessions();
   const idx = sessions.findIndex(s => s.id === sessionId);
