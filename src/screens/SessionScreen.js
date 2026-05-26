@@ -1,13 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, Alert, Modal, ScrollView, SafeAreaView
+  View, Text, TouchableOpacity, StyleSheet,
+  TextInput, Alert, Modal, ScrollView, SafeAreaView, Linking
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getSession, getPlayers, addParticipant, removeParticipant,
   addBuy, removeBuy, setFinalAmount, closeSession,
-  calcParticipant, calcSession
+  calcParticipant, calcSession, buildWhatsAppSummary
 } from '../storage/storage';
 import { C, Card, Btn, BalanceBadge, Divider, formatMoney } from '../components/UI';
 
@@ -97,10 +97,27 @@ export default function SessionScreen({ route, navigation }) {
     ]);
   }
 
+  async function handleShareWhatsApp() {
+    const text = buildWhatsAppSummary(session);
+    const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+    const canOpen = await Linking.canOpenURL(url);
+    if (canOpen) {
+      Linking.openURL(url);
+    } else {
+      Alert.alert('WhatsApp no disponible', 'No se encontró WhatsApp en este dispositivo.');
+    }
+  }
+
+  function handleViewDebts() {
+    navigation.navigate('Debts', { session });
+  }
+
   if (!session) return null;
 
   const isClosed = session.status === 'closed';
   const { totalPot, diff } = calcSession(session);
+  const allHaveResult = session.participants.length > 0 &&
+    session.participants.every(p => p.finalAmount !== null);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -122,6 +139,20 @@ export default function SessionScreen({ route, navigation }) {
             </View>
           )}
         </Card>
+
+        {/* Botones de acción rápida */}
+        {session.participants.length > 0 && (
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleShareWhatsApp}>
+              <Text style={styles.actionIcon}>📤</Text>
+              <Text style={styles.actionText}>WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleViewDebts}>
+              <Text style={styles.actionIcon}>💳</Text>
+              <Text style={styles.actionText}>Deudas</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Jugadores</Text>
 
@@ -315,7 +346,7 @@ export default function SessionScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  summaryCard: { marginBottom: 20, alignItems: 'center' },
+  summaryCard: { marginBottom: 12, alignItems: 'center' },
   sectionLabel: { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 4 },
   bigPot: { fontSize: 38, fontWeight: '800', color: C.accent, marginBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center' },
@@ -326,6 +357,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8,
   },
   closedText: { fontSize: 13, color: C.green, fontWeight: '700' },
+  actionRow: {
+    flexDirection: 'row', gap: 10, marginBottom: 16,
+  },
+  actionBtn: {
+    flex: 1, backgroundColor: C.card, borderRadius: 12,
+    borderWidth: 1, borderColor: C.cardBorder,
+    paddingVertical: 12, alignItems: 'center',
+  },
+  actionIcon: { fontSize: 22, marginBottom: 4 },
+  actionText: { fontSize: 12, fontWeight: '600', color: C.white },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 10 },
   avatar: {
     width: 36, height: 36, borderRadius: 18,

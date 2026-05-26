@@ -7,6 +7,8 @@ import { C } from './src/components/UI';
 import HomeScreen from './src/screens/HomeScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
 import SessionScreen from './src/screens/SessionScreen';
+import StatsScreen from './src/screens/StatsScreen';
+import DebtScreen from './src/screens/DebtScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -22,20 +24,18 @@ export default function App() {
           contentStyle: { backgroundColor: C.bg },
         }}
       >
+        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Players" component={PlayersScreen} options={{ title: 'Jugadores' }} />
+        <Stack.Screen name="Session" component={SessionScreen} options={{ title: 'Partida' }} />
         <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ headerShown: false }}
+          name="Stats"
+          component={StatsScreen}
+          options={({ route }) => ({ title: `📊 ${route.params.playerName}` })}
         />
         <Stack.Screen
-          name="Players"
-          component={PlayersScreen}
-          options={{ title: 'Jugadores', headerBackTitle: 'Volver' }}
-        />
-        <Stack.Screen
-          name="Session"
-          component={SessionScreen}
-          options={{ headerBackTitle: 'Volver' }}
+          name="Debts"
+          component={DebtScreen}
+          options={{ title: '💳 Pagos pendientes' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

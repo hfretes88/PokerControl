@@ -7,7 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getPlayers, savePlayer, deletePlayer } from '../storage/storage';
 import { C, Card, Btn } from '../components/UI';
 
-export default function PlayersScreen() {
+export default function PlayersScreen({ navigation }) {
   const [players, setPlayers] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
@@ -59,6 +59,11 @@ export default function PlayersScreen() {
                 <Text style={styles.avatarText}>{item.name[0].toUpperCase()}</Text>
               </View>
               <Text style={styles.playerName}>{item.name}</Text>
+              <TouchableOpacity
+                style={styles.statsBtn}
+                onPress={() => navigation.navigate('Stats', { playerId: item.id, playerName: item.name })}>
+                <Text style={styles.statsBtnText}>📊 Stats</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDelete(item)} style={styles.delBtn}>
                 <Text style={styles.delText}>🗑</Text>
               </TouchableOpacity>
@@ -105,6 +110,11 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: 16, fontWeight: '700', color: C.accent },
   playerName: { flex: 1, fontSize: 16, fontWeight: '600', color: C.white },
+  statsBtn: {
+    backgroundColor: '#1a2535', borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder,
+    paddingHorizontal: 10, paddingVertical: 5, marginRight: 8,
+  },
+  statsBtnText: { fontSize: 12, color: C.accent, fontWeight: '600' },
   delBtn: { padding: 6 },
   delText: { fontSize: 16 },
   empty: { alignItems: 'center', paddingTop: 80 },
