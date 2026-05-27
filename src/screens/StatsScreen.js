@@ -87,7 +87,8 @@ export default function StatsScreen({ route }) {
           <Card style={[styles.halfCard, { marginRight: 6 }]}>
             <Text style={styles.halfLabel}>🏆 Mejor</Text>
             <Text style={[styles.halfAmount, { color: C.green }]}>
-              +{formatMoney(stats.bestGame.balance)}
+              {stats.bestGame.balance > 0 ? '+' : ''}
+              {formatMoney(stats.bestGame.balance)}
             </Text>
             <Text style={styles.halfSession} numberOfLines={1}>
               {stats.bestGame.sessionName}
