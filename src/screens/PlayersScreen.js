@@ -1,13 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, TextInput, Alert, SafeAreaView, Modal
+  StyleSheet, TextInput, Alert, Modal
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPlayers, savePlayer, deletePlayer } from '../storage/storage';
 import { C, Card, Btn } from '../components/UI';
 
 export default function PlayersScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [players, setPlayers] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
@@ -39,12 +42,14 @@ export default function PlayersScreen({ navigation }) {
     ]);
   }
 
+  const fabBottom = insets.bottom + 20;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <FlatList
         data={players}
         keyExtractor={item => item.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: fabBottom + 70, flexGrow: 1 }}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>👤</Text>
@@ -72,13 +77,16 @@ export default function PlayersScreen({ navigation }) {
         )}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+      <TouchableOpacity
+        style={[styles.fab, { bottom: fabBottom }]}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.85}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+          <View style={[styles.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <Text style={styles.modalTitle}>Agregar jugador</Text>
             <TextInput
               style={styles.input}
@@ -111,27 +119,28 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 16, fontWeight: '700', color: C.accent },
   playerName: { flex: 1, fontSize: 16, fontWeight: '600', color: C.white },
   statsBtn: {
-    backgroundColor: '#1a2535', borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder,
+    backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder,
     paddingHorizontal: 10, paddingVertical: 5, marginRight: 8,
   },
   statsBtnText: { fontSize: 12, color: C.accent, fontWeight: '600' },
-  delBtn: { padding: 6 },
+  delBtn: { padding: 8 },
   delText: { fontSize: 16 },
-  empty: { alignItems: 'center', paddingTop: 80 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyIcon: { fontSize: 50, marginBottom: 16 },
   emptyText: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
   emptyMuted: { fontSize: 13, color: C.gray },
   fab: {
-    position: 'absolute', bottom: 28, right: 20,
+    position: 'absolute', right: 20,
     backgroundColor: C.accent, width: 58, height: 58,
-    borderRadius: 29, alignItems: 'center', justifyContent: 'center', elevation: 8,
+    borderRadius: 29, alignItems: 'center', justifyContent: 'center',
+    elevation: 8, shadowColor: C.accent, shadowOpacity: 0.5, shadowRadius: 12,
   },
-  fabText: { fontSize: 32, color: '#0f1923', fontWeight: '300', lineHeight: 38 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  fabText: { fontSize: 34, color: '#0f1923', fontWeight: '300', lineHeight: 40 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalBox: {
-    backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24,
+    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 16 },
   input: {
     backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder,
     padding: 13, color: C.white, fontSize: 15, marginBottom: 16,

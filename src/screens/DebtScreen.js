@@ -1,22 +1,24 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
-import { calcDebts, calcParticipant, formatMoney } from '../storage/storage';
-import { C, Card, formatMoney as fmt } from '../components/UI';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { calcDebts, calcParticipant } from '../storage/storage';
+import { C, Card, formatMoney } from '../components/UI';
 
 export default function DebtScreen({ route }) {
   const { session } = route.params;
+  const insets = useSafeAreaInsets();
   const debts = calcDebts(session);
-
   const allHaveResult = session.participants.every(p => p.finalAmount !== null);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
 
         {!allHaveResult && (
           <View style={styles.warnBox}>
             <Text style={styles.warnText}>
-              ⚠️ Algunos jugadores no tienen resultado final registrado. Los cálculos pueden estar incompletos.
+              ⚠️ Algunos jugadores no tienen resultado final. Los cálculos pueden estar incompletos.
             </Text>
           </View>
         )}
@@ -27,7 +29,7 @@ export default function DebtScreen({ route }) {
           .filter(p => p.finalAmount !== null)
           .sort((a, b) => calcParticipant(b).balance - calcParticipant(a).balance)
           .map(p => {
-            const { totalBought, finalAmount, balance } = calcParticipant(p);
+            const { balance } = calcParticipant(p);
             return (
               <Card key={p.playerId}>
                 <View style={styles.row}>
@@ -38,7 +40,7 @@ export default function DebtScreen({ route }) {
                   <Text style={[styles.balance, {
                     color: balance > 0 ? C.green : balance < 0 ? C.red : C.gray
                   }]}>
-                    {balance > 0 ? '+' : ''}{fmt(balance)}
+                    {balance > 0 ? '+' : ''}{formatMoney(balance)}
                   </Text>
                 </View>
               </Card>
@@ -52,7 +54,9 @@ export default function DebtScreen({ route }) {
           <View style={styles.noDebts}>
             <Text style={styles.noDebtsIcon}>🤝</Text>
             <Text style={styles.noDebtsText}>
-              {allHaveResult ? '¡Todos mano a mano! No hay pagos pendientes.' : 'Registrá todos los resultados para ver los pagos.'}
+              {allHaveResult
+                ? '¡Todos mano a mano! No hay pagos pendientes.'
+                : 'Registrá todos los resultados para ver los pagos.'}
             </Text>
           </View>
         ) : (
@@ -60,14 +64,20 @@ export default function DebtScreen({ route }) {
             <Card key={i} style={styles.debtCard}>
               <View style={styles.debtRow}>
                 <View style={styles.debtPerson}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{d.from[0].toUpperCase()}</Text>
+                  </View>
                   <Text style={styles.debtName}>{d.from}</Text>
                   <Text style={styles.debtLabel}>paga</Text>
                 </View>
                 <View style={styles.debtAmountBox}>
-                  <Text style={styles.debtAmount}>{fmt(d.amount)}</Text>
+                  <Text style={styles.debtAmount}>{formatMoney(d.amount)}</Text>
                   <Text style={styles.debtArrow}>→</Text>
                 </View>
                 <View style={styles.debtPerson}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{d.to[0].toUpperCase()}</Text>
+                  </View>
                   <Text style={styles.debtName}>{d.to}</Text>
                   <Text style={styles.debtLabel}>recibe</Text>
                 </View>
@@ -102,7 +112,7 @@ const styles = StyleSheet.create({
   debtCard: { marginBottom: 10 },
   debtRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   debtPerson: { flex: 1, alignItems: 'center' },
-  debtName: { fontSize: 15, fontWeight: '700', color: C.white, marginBottom: 2 },
+  debtName: { fontSize: 14, fontWeight: '700', color: C.white, marginBottom: 2 },
   debtLabel: { fontSize: 11, color: C.gray },
   debtAmountBox: { alignItems: 'center', paddingHorizontal: 8 },
   debtAmount: { fontSize: 18, fontWeight: '800', color: C.accent, marginBottom: 2 },

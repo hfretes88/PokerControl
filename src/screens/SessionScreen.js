@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  TextInput, Alert, Modal, ScrollView, SafeAreaView, Linking
+  TextInput, Alert, Modal, ScrollView, Linking, KeyboardAvoidingView, Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getSession, getPlayers, addParticipant, removeParticipant,
@@ -13,6 +15,7 @@ import { C, Card, Btn, BalanceBadge, Divider, formatMoney } from '../components/
 
 export default function SessionScreen({ route, navigation }) {
   const { sessionId } = route.params;
+  const insets = useSafeAreaInsets();
   const [session, setSession] = useState(null);
   const [allPlayers, setAllPlayers] = useState([]);
   const [addPlayerModal, setAddPlayerModal] = useState(false);
@@ -108,20 +111,15 @@ export default function SessionScreen({ route, navigation }) {
     }
   }
 
-  function handleViewDebts() {
-    navigation.navigate('Debts', { session });
-  }
-
   if (!session) return null;
 
   const isClosed = session.status === 'closed';
   const { totalPot, diff } = calcSession(session);
-  const allHaveResult = session.participants.length > 0 &&
-    session.participants.every(p => p.finalAmount !== null);
+  const modalPaddingBottom = insets.bottom + 16;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}>
 
         {/* Resumen mesa */}
         <Card style={styles.summaryCard}>
@@ -147,7 +145,9 @@ export default function SessionScreen({ route, navigation }) {
               <Text style={styles.actionIcon}>📤</Text>
               <Text style={styles.actionText}>WhatsApp</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleViewDebts}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={() => navigation.navigate('Debts', { session })}>
               <Text style={styles.actionIcon}>💳</Text>
               <Text style={styles.actionText}>Deudas</Text>
             </TouchableOpacity>
@@ -170,7 +170,7 @@ export default function SessionScreen({ route, navigation }) {
                 {!isClosed && (
                   <TouchableOpacity
                     onPress={() => handleRemoveParticipant(p.playerId, p.name)}
-                    style={{ padding: 4 }}>
+                    style={{ padding: 6 }}>
                     <Text style={{ fontSize: 18, color: C.muted }}>✕</Text>
                   </TouchableOpacity>
                 )}
@@ -186,7 +186,9 @@ export default function SessionScreen({ route, navigation }) {
                     {new Date(b.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                   {!isClosed && (
-                    <TouchableOpacity onPress={() => handleRemoveBuy(p.playerId, i, b.amount)}>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveBuy(p.playerId, i, b.amount)}
+                      style={{ padding: 4 }}>
                       <Text style={{ fontSize: 14, color: C.muted }}>🗑</Text>
                     </TouchableOpacity>
                   )}
@@ -240,13 +242,14 @@ export default function SessionScreen({ route, navigation }) {
               )}
 
               {!isClosed && (
-                <Btn
-                  label={hasResult ? 'Editar resultado final' : 'Registrar resultado final'}
-                  onPress={() => { setFinalModal(p); setFinalInput(hasResult ? String(finalAmount) : ''); }}
-                  color={hasResult ? C.muted : C.green}
-                  small
-                  style={{ marginTop: 10 }}
-                />
+                <View style={{ marginTop: 10 }}>
+                  <Btn
+                    label={hasResult ? 'Editar resultado final' : 'Registrar resultado final'}
+                    onPress={() => { setFinalModal(p); setFinalInput(hasResult ? String(finalAmount) : ''); }}
+                    color={hasResult ? C.muted : C.green}
+                    small
+                  />
+                </View>
               )}
             </Card>
           );
@@ -254,7 +257,7 @@ export default function SessionScreen({ route, navigation }) {
 
         {!isClosed && (
           <TouchableOpacity style={styles.addPlayerBtn} onPress={() => setAddPlayerModal(true)}>
-            <Text style={styles.addPlayerText}>👤+ Agregar jugador a la partida</Text>
+            <Text style={styles.addPlayerText}>👤+  Agregar jugador a la partida</Text>
           </TouchableOpacity>
         )}
 
@@ -268,7 +271,7 @@ export default function SessionScreen({ route, navigation }) {
       {/* Modal agregar jugador */}
       <Modal visible={addPlayerModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+          <View style={[styles.modalBox, { paddingBottom: modalPaddingBottom }]}>
             <Text style={styles.modalTitle}>Agregar jugador</Text>
             {availablePlayers().length === 0 ? (
               <Text style={styles.noPlayersText}>
@@ -297,13 +300,15 @@ export default function SessionScreen({ route, navigation }) {
 
       {/* Modal agregar compra */}
       <Modal visible={!!buyModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { paddingBottom: modalPaddingBottom }]}>
             <Text style={styles.modalTitle}>Compra — {buyModal?.name}</Text>
             <Text style={styles.modalSub}>¿Cuánto compra en fichas?</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Ej: 500"
+              style={[styles.input, styles.amountInput]}
+              placeholder="Ej: 20000"
               placeholderTextColor={C.muted}
               value={buyAmount}
               onChangeText={setBuyAmount}
@@ -315,18 +320,20 @@ export default function SessionScreen({ route, navigation }) {
               <Btn label="Registrar" onPress={handleAddBuy} small />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal resultado final */}
       <Modal visible={!!finalModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { paddingBottom: modalPaddingBottom }]}>
             <Text style={styles.modalTitle}>Resultado — {finalModal?.name}</Text>
             <Text style={styles.modalSub}>¿Con cuánto terminó?</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Ej: 750"
+              style={[styles.input, styles.amountInput]}
+              placeholder="Ej: 35000"
               placeholderTextColor={C.muted}
               value={finalInput}
               onChangeText={setFinalInput}
@@ -338,7 +345,7 @@ export default function SessionScreen({ route, navigation }) {
               <Btn label="Guardar" onPress={handleSetFinal} small />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -357,9 +364,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8,
   },
   closedText: { fontSize: 13, color: C.green, fontWeight: '700' },
-  actionRow: {
-    flexDirection: 'row', gap: 10, marginBottom: 16,
-  },
+  actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   actionBtn: {
     flex: 1, backgroundColor: C.card, borderRadius: 12,
     borderWidth: 1, borderColor: C.cardBorder,
@@ -386,7 +391,7 @@ const styles = StyleSheet.create({
   emptyBuys: { fontSize: 13, color: C.muted, marginBottom: 6 },
   totalLabel: { flex: 1, fontSize: 13, color: C.gray },
   totalAmount: { fontSize: 15, fontWeight: '700', color: C.white },
-  addBuyBtn: { marginTop: 8, paddingVertical: 4 },
+  addBuyBtn: { marginTop: 8, paddingVertical: 6 },
   addBuyText: { fontSize: 14, color: C.accent, fontWeight: '600' },
   finalAmount: { fontSize: 20, fontWeight: '700', color: C.white, marginTop: 2 },
   balanceBox: { marginTop: 10, padding: 10, borderRadius: 10, alignItems: 'center' },
@@ -402,9 +407,9 @@ const styles = StyleSheet.create({
   addPlayerText: { fontSize: 15, color: C.accent, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalBox: {
-    backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24,
+    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 4 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 4 },
   modalSub: { fontSize: 13, color: C.gray, marginBottom: 14 },
   noPlayersText: { fontSize: 14, color: C.gray, marginBottom: 16, lineHeight: 20 },
   playerOption: {
@@ -414,7 +419,8 @@ const styles = StyleSheet.create({
   playerOptionText: { flex: 1, fontSize: 15, color: C.white, fontWeight: '500' },
   input: {
     backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder,
-    padding: 13, color: C.white, fontSize: 18, marginBottom: 16, fontWeight: '600',
+    padding: 13, color: C.white, fontSize: 15, marginBottom: 16,
   },
+  amountInput: { fontSize: 22, fontWeight: '700', color: C.accent },
   modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
 });

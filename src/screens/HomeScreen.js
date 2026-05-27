@@ -1,9 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, Alert, Modal, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform
+  TextInput, Alert, Modal, ScrollView, KeyboardAvoidingView,
+  Platform, StatusBar
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessions, createSessionWithBuys, deleteSession, getPlayers } from '../storage/storage';
 import { C, Card, Btn, formatMoney } from '../components/UI';
 
@@ -16,13 +18,13 @@ function defaultSessionName() {
 }
 
 export default function HomeScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
-
   const [sessionName, setSessionName] = useState('');
   const [allPlayers, setAllPlayers] = useState([]);
-  const [selectedIds, setSelectedIds] = useState({});    // { [playerId]: bool }
-  const [initialAmount, setInitialAmount] = useState(''); // monto único para todos
+  const [selectedIds, setSelectedIds] = useState({});
+  const [initialAmount, setInitialAmount] = useState('');
 
   useFocusEffect(
     useCallback(() => { loadSessions(); }, [])
@@ -61,14 +63,11 @@ export default function HomeScreen({ navigation }) {
   async function handleCreate() {
     const name = sessionName.trim() || defaultSessionName();
     const amount = parseFloat((initialAmount || '0').replace(',', '.'));
-
     const selected = allPlayers.filter(p => selectedIds[p.id]);
-
     if (selected.length > 0 && (isNaN(amount) || amount <= 0)) {
-      Alert.alert('Monto inválido', 'Ingresá el monto inicial de buy-in para todos los jugadores.');
+      Alert.alert('Monto inválido', 'Ingresá el monto inicial por jugador.');
       return;
     }
-
     const entries = selected.map(p => ({ player: p, amount }));
     await createSessionWithBuys(name, entries);
     resetModal();
@@ -99,22 +98,43 @@ export default function HomeScreen({ navigation }) {
   const selectedCount = allPlayers.filter(p => selectedIds[p.id]).length;
   const allSelected = allPlayers.length > 0 && allPlayers.every(p => selectedIds[p.id]);
 
+  // Altura real del header respetando status bar
+  const headerPaddingTop = insets.top + 12;
+  // FAB separado de la navigation bar
+  const fabBottom = insets.bottom + 20;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🃏 Poker Control</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Players')} style={styles.playersBtn}>
-          <Text style={styles.playersBtnText}>👥 Jugadores</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={C.card} />
+
+      {/* Header custom que respeta status bar */}
+      <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerIcon}>♠</Text>
+          <Text style={styles.title}>Poker Control</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Players')}
+          style={styles.playersBtn}>
+          <Text style={styles.playersBtnText}>👥  Jugadores</Text>
         </TouchableOpacity>
       </View>
 
       <FlatList
         data={sessions}
         keyExtractor={item => item.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: fabBottom + 70, // espacio para el FAB
+          flexGrow: 1,
+        }}
         ListEmptyComponent={
+          // Empty state centrado verticalmente
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🂠</Text>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyCardText}>A</Text>
+              <Text style={styles.emptyCardSuit}>♠</Text>
+            </View>
             <Text style={styles.emptyText}>No hay partidas aún</Text>
             <Text style={styles.emptyMuted}>Tocá + para crear la primera</Text>
           </View>
@@ -122,21 +142,25 @@ export default function HomeScreen({ navigation }) {
         renderItem={({ item }) => {
           const { pot, count } = getSessionSummary(item);
           return (
-            <TouchableOpacity onPress={() => navigation.navigate('Session', { sessionId: item.id })}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Session', { sessionId: item.id })}
+              activeOpacity={0.75}>
               <Card>
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sessionName}>{item.name}</Text>
                     <Text style={styles.sessionMeta}>
-                      {new Date(item.createdAt).toLocaleDateString('es-AR')}  ·  {count} jugadores
+                      {new Date(item.createdAt).toLocaleDateString('es-AR')}
+                      {'  ·  '}{count} jugadores
                     </Text>
                   </View>
                   <View style={styles.rightCol}>
                     <Text style={styles.pot}>{formatMoney(pot)}</Text>
                     <View style={[styles.statusBadge,
                       item.status === 'closed' ? styles.closedBadge : styles.activeBadge]}>
-                      <Text style={styles.statusText}>
-                        {item.status === 'closed' ? 'Cerrada' : 'Activa'}
+                      <Text style={[styles.statusText,
+                        { color: item.status === 'closed' ? '#a0a000' : C.green }]}>
+                        {item.status === 'closed' ? 'Cerrada' : '● Activa'}
                       </Text>
                     </View>
                   </View>
@@ -150,19 +174,23 @@ export default function HomeScreen({ navigation }) {
         }}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={openModal}>
+      {/* FAB respeta navigation bar */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: fabBottom }]}
+        onPress={openModal}
+        activeOpacity={0.85}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
+      {/* Modal nueva partida */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+          <View style={[styles.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <Text style={styles.modalTitle}>Nueva partida</Text>
 
-            {/* Nombre */}
-            <Text style={styles.fieldLabel}>Nombre</Text>
+            <Text style={styles.fieldLabel}>NOMBRE</Text>
             <TextInput
               style={styles.input}
               value={sessionName}
@@ -171,8 +199,7 @@ export default function HomeScreen({ navigation }) {
               selectTextOnFocus
             />
 
-            {/* Buy-in único */}
-            <Text style={styles.fieldLabel}>Monto inicial por jugador ($)</Text>
+            <Text style={styles.fieldLabel}>MONTO INICIAL POR JUGADOR</Text>
             <TextInput
               style={[styles.input, styles.amountInput]}
               placeholder="Ej: 20000"
@@ -182,18 +209,17 @@ export default function HomeScreen({ navigation }) {
               keyboardType="decimal-pad"
             />
 
-            {/* Jugadores */}
             <View style={styles.playersHeader}>
               <Text style={styles.fieldLabel}>
-                Jugadores
+                JUGADORES
                 {selectedCount > 0 && (
-                  <Text style={styles.fieldCount}> · {selectedCount} seleccionados</Text>
+                  <Text style={styles.fieldCount}> · {selectedCount}</Text>
                 )}
               </Text>
               {allPlayers.length > 0 && (
                 <TouchableOpacity onPress={toggleAll}>
                   <Text style={styles.toggleAllText}>
-                    {allSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                    {allSelected ? 'Ninguno' : 'Todos'}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -201,7 +227,7 @@ export default function HomeScreen({ navigation }) {
 
             {allPlayers.length === 0 ? (
               <Text style={styles.noPlayersText}>
-                No hay jugadores creados. Creá jugadores en la sección 👥 Jugadores primero.
+                Creá jugadores en 👥 Jugadores primero.
               </Text>
             ) : (
               <ScrollView style={styles.playersList} showsVerticalScrollIndicator={false}>
@@ -228,11 +254,10 @@ export default function HomeScreen({ navigation }) {
               </ScrollView>
             )}
 
-            {/* Preview del pozo */}
-            {selectedCount > 0 && initialAmount > 0 && (
+            {selectedCount > 0 && parseFloat(initialAmount) > 0 && (
               <View style={styles.previewBox}>
                 <Text style={styles.previewText}>
-                  Total a recaudar: {formatMoney(selectedCount * parseFloat(initialAmount || '0'))}
+                  Total: {formatMoney(selectedCount * parseFloat(initialAmount || '0'))}
                   {'  '}({selectedCount} × {formatMoney(parseFloat(initialAmount || '0'))})
                 </Text>
               </View>
@@ -245,73 +270,99 @@ export default function HomeScreen({ navigation }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
+
+  // Header
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8,
+    paddingHorizontal: 16, paddingBottom: 12,
+    backgroundColor: C.card,
+    borderBottomWidth: 1, borderBottomColor: C.cardBorder,
   },
-  title: { fontSize: 22, fontWeight: '800', color: C.accent },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerIcon: { fontSize: 22, color: C.accent, fontWeight: '900' },
+  title: { fontSize: 20, fontWeight: '800', color: C.accent },
   playersBtn: {
-    backgroundColor: C.card, paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder,
+    backgroundColor: C.bg, paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,
   },
-  playersBtnText: { fontSize: 13, color: C.accent, fontWeight: '600' },
+  playersBtnText: { fontSize: 13, color: C.white, fontWeight: '600' },
+
+  // Lista
   row: { flexDirection: 'row', alignItems: 'center' },
-  rightCol: { alignItems: 'flex-end', marginRight: 12 },
-  sessionName: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 4 },
+  rightCol: { alignItems: 'flex-end', marginRight: 10 },
+  sessionName: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 3 },
   sessionMeta: { fontSize: 12, color: C.gray },
-  pot: { fontSize: 16, fontWeight: '700', color: C.accent, marginBottom: 4 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  activeBadge: { backgroundColor: '#1a3a2a' },
-  closedBadge: { backgroundColor: '#2a2a1a' },
-  statusText: { fontSize: 11, fontWeight: '600', color: C.gray },
-  delBtn: { padding: 6 },
+  pot: { fontSize: 15, fontWeight: '700', color: C.accent, marginBottom: 4 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  activeBadge: { backgroundColor: '#0d2a1a' },
+  closedBadge: { backgroundColor: '#2a2a0d' },
+  statusText: { fontSize: 11, fontWeight: '700' },
+  delBtn: { padding: 8 },
   delText: { fontSize: 16 },
-  empty: { alignItems: 'center', paddingTop: 80 },
-  emptyIcon: { fontSize: 60, marginBottom: 16 },
+
+  // Empty state
+  empty: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingTop: 80,
+  },
+  emptyCard: {
+    width: 72, height: 96, backgroundColor: C.card,
+    borderRadius: 10, borderWidth: 2, borderColor: C.cardBorder,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+  },
+  emptyCardText: { fontSize: 28, fontWeight: '900', color: C.accent, lineHeight: 32 },
+  emptyCardSuit: { fontSize: 18, color: C.accent },
   emptyText: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
   emptyMuted: { fontSize: 13, color: C.gray },
+
+  // FAB
   fab: {
-    position: 'absolute', bottom: 28, right: 20,
+    position: 'absolute', right: 20,
     backgroundColor: C.accent, width: 58, height: 58,
     borderRadius: 29, alignItems: 'center', justifyContent: 'center',
-    elevation: 8, shadowColor: C.accent, shadowOpacity: 0.4, shadowRadius: 12,
+    elevation: 8, shadowColor: C.accent, shadowOpacity: 0.5, shadowRadius: 12,
   },
-  fabText: { fontSize: 32, color: '#0f1923', fontWeight: '300', lineHeight: 38 },
+  fabText: { fontSize: 34, color: '#0f1923', fontWeight: '300', lineHeight: 40 },
+
+  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalBox: {
-    backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, maxHeight: '90%',
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 16 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 0.8, marginBottom: 8 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 20 },
+  fieldLabel: {
+    fontSize: 10, fontWeight: '700', color: C.gray,
+    letterSpacing: 1.2, marginBottom: 8,
+  },
   fieldCount: { color: C.accent },
   input: {
     backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder,
     padding: 13, color: C.white, fontSize: 15, marginBottom: 16,
   },
-  amountInput: { fontSize: 20, fontWeight: '700' },
+  amountInput: { fontSize: 22, fontWeight: '700', color: C.accent },
   playersHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
   },
-  toggleAllText: { fontSize: 12, color: C.accent, fontWeight: '600' },
-  noPlayersText: { fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 18 },
+  toggleAllText: { fontSize: 12, color: C.accent, fontWeight: '700' },
+  noPlayersText: { fontSize: 13, color: C.muted, marginBottom: 16 },
   playersList: { maxHeight: 200, marginBottom: 12 },
   playerRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.cardBorder,
+    paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.cardBorder,
   },
   checkbox: {
     width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.muted,
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
   checkboxSelected: { backgroundColor: C.accent, borderColor: C.accent },
-  checkmark: { fontSize: 13, color: '#0f1923', fontWeight: '800' },
+  checkmark: { fontSize: 13, color: '#0f1923', fontWeight: '900' },
   playerAvatar: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center', marginRight: 10,
@@ -320,7 +371,9 @@ const styles = StyleSheet.create({
   playerRowName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.white },
   playerRowMuted: { color: C.muted },
   previewBox: {
-    backgroundColor: '#1a3a2a', borderRadius: 10, padding: 10, marginBottom: 12, alignItems: 'center',
+    backgroundColor: '#0d2a1a', borderRadius: 10, padding: 12,
+    marginBottom: 16, alignItems: 'center',
+    borderWidth: 1, borderColor: '#1a4a2a',
   },
   previewText: { fontSize: 13, color: C.green, fontWeight: '700' },
   modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },

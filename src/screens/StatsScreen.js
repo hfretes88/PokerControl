@@ -1,13 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity
+  View, Text, ScrollView, StyleSheet
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPlayerStats } from '../storage/storage';
 import { C, Card, Divider, formatMoney } from '../components/UI';
 
 export default function StatsScreen({ route }) {
   const { playerId, playerName } = route.params;
+  const insets = useSafeAreaInsets();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -24,7 +27,7 @@ export default function StatsScreen({ route }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
         <Text style={styles.loading}>Cargando...</Text>
       </SafeAreaView>
     );
@@ -32,7 +35,7 @@ export default function StatsScreen({ route }) {
 
   if (!stats) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>📊</Text>
           <Text style={styles.emptyText}>Sin historial aún</Text>
@@ -47,8 +50,8 @@ export default function StatsScreen({ route }) {
   const totalIsPositive = stats.totalBalance >= 0;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
 
         {/* Resumen global */}
         <Card style={styles.heroCard}>
@@ -82,7 +85,7 @@ export default function StatsScreen({ route }) {
         {/* Mejor y peor partida */}
         <View style={styles.row}>
           <Card style={[styles.halfCard, { marginRight: 6 }]}>
-            <Text style={styles.halfLabel}>🏆 Mejor partida</Text>
+            <Text style={styles.halfLabel}>🏆 Mejor</Text>
             <Text style={[styles.halfAmount, { color: C.green }]}>
               +{formatMoney(stats.bestGame.balance)}
             </Text>
@@ -91,7 +94,7 @@ export default function StatsScreen({ route }) {
             </Text>
           </Card>
           <Card style={[styles.halfCard, { marginLeft: 6 }]}>
-            <Text style={styles.halfLabel}>💸 Peor partida</Text>
+            <Text style={styles.halfLabel}>💸 Peor</Text>
             <Text style={[styles.halfAmount, { color: C.red }]}>
               {formatMoney(stats.worstGame.balance)}
             </Text>
@@ -103,7 +106,7 @@ export default function StatsScreen({ route }) {
 
         {/* Historial */}
         <Text style={styles.sectionTitle}>Historial de partidas</Text>
-        {stats.history.map((h, idx) => (
+        {stats.history.map(h => (
           <Card key={h.sessionId}>
             <View style={styles.histRow}>
               <View style={{ flex: 1 }}>
@@ -121,7 +124,7 @@ export default function StatsScreen({ route }) {
                   {h.balance > 0 ? '+' : ''}{formatMoney(h.balance)}
                 </Text>
                 <Text style={styles.histDetail}>
-                  ${h.totalBought.toLocaleString('es-AR')} → ${h.finalAmount.toLocaleString('es-AR')}
+                  {formatMoney(h.totalBought)} → {formatMoney(h.finalAmount)}
                 </Text>
               </View>
             </View>
@@ -135,7 +138,7 @@ export default function StatsScreen({ route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   loading: { color: C.gray, textAlign: 'center', marginTop: 40, fontSize: 16 },
-  empty: { alignItems: 'center', paddingTop: 80, padding: 24 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyIcon: { fontSize: 50, marginBottom: 16 },
   emptyText: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
   emptyMuted: { fontSize: 13, color: C.gray, textAlign: 'center' },
