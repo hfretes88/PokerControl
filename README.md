@@ -1,4 +1,6 @@
-PokerControl — Mobile application for managing expenses in amateur poker games.
+# PokerControl
+
+## Mobile application for managing expenses in amateur poker games.
 
 Register players, chip buy-ins, and game results. Automatically calculates balances and generates a list of outstanding payments, optimizing settlements with the minimum number of transfers required to clear all debts.
 
