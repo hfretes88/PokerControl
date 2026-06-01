@@ -24,4 +24,8 @@
         </intent-filter>
       </activity>
     </application>
+    <queries>
+      <package android:name="com.whatsapp" />
+      <package android:name="com.whatsapp.w4b" /> <!-- WhatsApp Business -->
+    </queries>    
 </manifest>
