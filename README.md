@@ -1,4 +1,8 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+PokerControl — Mobile application for managing expenses in amateur poker games.
+
+Register players, chip buy-ins, and game results. Automatically calculates balances and generates a list of outstanding payments, optimizing settlements with the minimum number of transfers required to clear all debts.
+
+This is a [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
 # Getting Started
 
