@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPlayerStats } from '../storage/storage';
 import { C, Card, Divider, formatMoney } from '../components/UI';
+import { GS } from '../components/GlobalStyles';
 import LineChart from '../components/LineChart';
 
 export default function StatsScreen({ route }) {
@@ -162,13 +163,9 @@ export default function StatsScreen({ route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  loading: { color: C.gray, textAlign: 'center', marginTop: 40, fontSize: 16 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  emptyIcon: { fontSize: 50, marginBottom: 16 },
-  emptyText: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
-  emptyMuted: { fontSize: 13, color: C.gray, textAlign: 'center' },
+const styles = {
+  ...GS,
+  ...StyleSheet.create({
   heroCard: { alignItems: 'center', marginBottom: 12 },
   heroLabel: { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 6 },
   heroAmount: { fontSize: 42, fontWeight: '800', marginBottom: 16 },
@@ -191,4 +188,5 @@ const styles = StyleSheet.create({
   histDate: { fontSize: 12, color: C.gray },
   histBalance: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
   histDetail: { fontSize: 11, color: C.muted },
-});
+  }),
+};

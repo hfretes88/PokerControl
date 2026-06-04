@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { calcDebts, calcParticipant } from '../storage/storage';
 import { C, Card, formatMoney } from '../components/UI';
+import { GS } from '../components/GlobalStyles';
 
 export default function DebtScreen({ route }) {
   const { session } = route.params;
@@ -90,31 +91,25 @@ export default function DebtScreen({ route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  warnBox: {
-    backgroundColor: '#2a1f00', borderRadius: 10, padding: 12, marginBottom: 16,
-    borderWidth: 1, borderColor: '#4a3a00',
-  },
-  warnText: { fontSize: 13, color: C.accent, lineHeight: 18 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 10 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  avatar: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
-  },
-  avatarText: { fontSize: 14, fontWeight: '700', color: C.accent },
-  playerName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.white },
-  balance: { fontSize: 16, fontWeight: '700' },
-  noDebts: { alignItems: 'center', paddingVertical: 30 },
-  noDebtsIcon: { fontSize: 40, marginBottom: 12 },
-  noDebtsText: { fontSize: 14, color: C.gray, textAlign: 'center', lineHeight: 20 },
-  debtCard: { marginBottom: 10 },
-  debtRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  debtPerson: { flex: 1, alignItems: 'center' },
-  debtName: { fontSize: 14, fontWeight: '700', color: C.white, marginBottom: 2 },
-  debtLabel: { fontSize: 11, color: C.gray },
-  debtAmountBox: { alignItems: 'center', paddingHorizontal: 8 },
-  debtAmount: { fontSize: 18, fontWeight: '800', color: C.accent, marginBottom: 2 },
-  debtArrow: { fontSize: 16, color: C.muted },
-});
+const styles = {
+  ...GS,
+  ...StyleSheet.create({
+    warnBox: {
+      backgroundColor: '#2a1f00', borderRadius: 10, padding: 12, marginBottom: 16,
+      borderWidth: 1, borderColor: '#4a3a00',
+    },
+    warnText: { fontSize: 13, color: C.accent, lineHeight: 18 },
+    balance: { fontSize: 16, fontWeight: '700' },
+    noDebts: { alignItems: 'center', paddingVertical: 30 },
+    noDebtsIcon: { fontSize: 40, marginBottom: 12 },
+    noDebtsText: { fontSize: 14, color: C.gray, textAlign: 'center', lineHeight: 20 },
+    debtCard: { marginBottom: 10 },
+    debtRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    debtPerson: { flex: 1, alignItems: 'center' },
+    debtName: { fontSize: 14, fontWeight: '700', color: C.white, marginBottom: 2 },
+    debtLabel: { fontSize: 11, color: C.gray },
+    debtAmountBox: { alignItems: 'center', paddingHorizontal: 8 },
+    debtAmount: { fontSize: 18, fontWeight: '800', color: C.accent, marginBottom: 2 },
+    debtArrow: { fontSize: 16, color: C.muted },
+  }),
+};

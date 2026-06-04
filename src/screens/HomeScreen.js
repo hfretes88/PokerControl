@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessions, createSessionWithBuys, deleteSession, getPlayers } from '../storage/storage';
 import { C, Card, Btn, formatMoney } from '../components/UI';
 import InfoModal from '../components/InfoModal';
+import { GS } from '../components/GlobalStyles';
 
 function defaultSessionName() {
   const d = new Date();
@@ -298,109 +299,82 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
+const styles = {
+  ...GS,
+  ...StyleSheet.create({
+    // Header
+    header: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 16, paddingBottom: 12,
+      backgroundColor: C.card,
+      borderBottomWidth: 1, borderBottomColor: C.cardBorder,
+    },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    headerIcon: { fontSize: 22, color: C.accent, fontWeight: '900' },
+    title: { fontSize: 20, fontWeight: '800', color: C.accent },
+    headerBtns: { flexDirection: 'row', alignItems: 'center' },
+    playersBtn: {
+      backgroundColor: C.bg, paddingHorizontal: 14, paddingVertical: 8,
+      borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,
+    },
+    playersBtnText: { fontSize: 13, color: C.white, fontWeight: '600' },
 
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 12,
-    backgroundColor: C.card,
-    borderBottomWidth: 1, borderBottomColor: C.cardBorder,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerIcon: { fontSize: 22, color: C.accent, fontWeight: '900' },
-  title: { fontSize: 20, fontWeight: '800', color: C.accent },
-  headerBtns: { flexDirection: 'row', alignItems: 'center' },
-  playersBtn: {
-    backgroundColor: C.bg, paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,
-  },
-  playersBtnText: { fontSize: 13, color: C.white, fontWeight: '600' },
+    // Lista
+    rightCol: { alignItems: 'flex-end', marginRight: 10 },
+    sessionName: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 3 },
+    sessionMeta: { fontSize: 12, color: C.gray },
+    pot: { fontSize: 15, fontWeight: '700', color: C.accent, marginBottom: 4 },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    activeBadge: { backgroundColor: '#0a1e40' },
+    closedBadge: { backgroundColor: '#1a2540' },
+    statusText: { fontSize: 11, fontWeight: '700' },
 
-  // Lista
-  row: { flexDirection: 'row', alignItems: 'center' },
-  rightCol: { alignItems: 'flex-end', marginRight: 10 },
-  sessionName: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 3 },
-  sessionMeta: { fontSize: 12, color: C.gray },
-  pot: { fontSize: 15, fontWeight: '700', color: C.accent, marginBottom: 4 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  activeBadge: { backgroundColor: '#0a1e40' },
-  closedBadge: { backgroundColor: '#1a2540' },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  delBtn: { padding: 8 },
-  delText: { fontSize: 16 },
+    // Empty state (override padding para pantalla con lista)
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
+    emptyCard: {
+      width: 72, height: 96, backgroundColor: C.card,
+      borderRadius: 10, borderWidth: 2, borderColor: C.cardBorder,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+    },
+    emptyCardText: { fontSize: 28, fontWeight: '900', color: C.accent, lineHeight: 32 },
+    emptyCardSuit: { fontSize: 18, color: C.accent },
 
-  // Empty state
-  empty: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingTop: 80,
-  },
-  emptyCard: {
-    width: 72, height: 96, backgroundColor: C.card,
-    borderRadius: 10, borderWidth: 2, borderColor: C.cardBorder,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-  },
-  emptyCardText: { fontSize: 28, fontWeight: '900', color: C.accent, lineHeight: 32 },
-  emptyCardSuit: { fontSize: 18, color: C.accent },
-  emptyText: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
-  emptyMuted: { fontSize: 13, color: C.gray },
-
-  // FAB
-  fab: {
-    position: 'absolute', right: 20,
-    backgroundColor: C.accent, width: 58, height: 58,
-    borderRadius: 29, alignItems: 'center', justifyContent: 'center',
-    elevation: 8, shadowColor: C.accent, shadowOpacity: 0.5, shadowRadius: 12,
-  },
-  fabText: { fontSize: 34, color: '#080e1a', fontWeight: '300', lineHeight: 40 },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  modalBox: {
-    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, maxHeight: '90%',
-  },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 20 },
-  fieldLabel: {
-    fontSize: 10, fontWeight: '700', color: C.gray,
-    letterSpacing: 1.2, marginBottom: 8,
-  },
-  fieldCount: { color: C.accent },
-  input: {
-    backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder,
-    padding: 13, color: C.white, fontSize: 15, marginBottom: 16,
-  },
-  amountInput: { fontSize: 22, fontWeight: '700', color: C.accent },
-  playersHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
-  },
-  toggleAllText: { fontSize: 12, color: C.accent, fontWeight: '700' },
-  noPlayersText: { fontSize: 13, color: C.muted, marginBottom: 16 },
-  playersList: { maxHeight: 200, marginBottom: 12 },
-  playerRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.cardBorder,
-  },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.muted,
-    alignItems: 'center', justifyContent: 'center', marginRight: 10,
-  },
-  checkboxSelected: { backgroundColor: C.accent, borderColor: C.accent },
-  checkmark: { fontSize: 13, color: '#080e1a', fontWeight: '900' },
-  playerAvatar: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
-  },
-  playerAvatarText: { fontSize: 13, fontWeight: '700', color: C.accent },
-  playerRowName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.white },
-  playerRowMuted: { color: C.muted },
-  previewBox: {
-    backgroundColor: '#0a1e40', borderRadius: 10, padding: 12,
-    marginBottom: 16, alignItems: 'center',
-    borderWidth: 1, borderColor: '#1a3a5a',
-  },
-  previewText: { fontSize: 13, color: C.green, fontWeight: '700' },
-  modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  aboutText: { fontSize: 14, color: C.gray, lineHeight: 22, marginBottom: 10 },
-});
+    // Modal (modalBox override para maxHeight)
+    modalBox: {
+      backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      padding: 24, maxHeight: '90%',
+    },
+    modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 20 },
+    fieldCount: { color: C.accent },
+    playersHeader: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
+    },
+    toggleAllText: { fontSize: 12, color: C.accent, fontWeight: '700' },
+    noPlayersText: { fontSize: 13, color: C.muted, marginBottom: 16 },
+    playersList: { maxHeight: 200, marginBottom: 12 },
+    playerRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.cardBorder,
+    },
+    checkbox: {
+      width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.muted,
+      alignItems: 'center', justifyContent: 'center', marginRight: 10,
+    },
+    checkboxSelected: { backgroundColor: C.accent, borderColor: C.accent },
+    checkmark: { fontSize: 13, color: '#080e1a', fontWeight: '900' },
+    playerAvatar: {
+      width: 30, height: 30, borderRadius: 15,
+      backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+    },
+    playerAvatarText: { fontSize: 13, fontWeight: '700', color: C.accent },
+    playerRowName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.white },
+    playerRowMuted: { color: C.muted },
+    previewBox: {
+      backgroundColor: '#0a1e40', borderRadius: 10, padding: 12,
+      marginBottom: 16, alignItems: 'center',
+      borderWidth: 1, borderColor: '#1a3a5a',
+    },
+    previewText: { fontSize: 13, color: C.green, fontWeight: '700' },
+    aboutText: { fontSize: 14, color: C.gray, lineHeight: 22, marginBottom: 10 },
+  }),
+};

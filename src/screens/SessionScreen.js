@@ -12,6 +12,7 @@ import {
   calcParticipant, calcSession, buildWhatsAppSummary
 } from '../storage/storage';
 import { C, Card, Btn, BalanceBadge, Divider, formatMoney } from '../components/UI';
+import { GS } from '../components/GlobalStyles';
 
 export default function SessionScreen({ route, navigation }) {
   const { sessionId } = route.params;
@@ -283,8 +284,8 @@ export default function SessionScreen({ route, navigation }) {
                   key={player.id}
                   style={styles.playerOption}
                   onPress={() => handleAddParticipant(player)}>
-                  <View style={styles.avatarSmall}>
-                    <Text style={styles.avatarTextSmall}>{player.name[0].toUpperCase()}</Text>
+                  <View style={styles.avatarSm}>
+                    <Text style={styles.avatarTextSm}>{player.name[0].toUpperCase()}</Text>
                   </View>
                   <Text style={styles.playerOptionText}>{player.name}</Text>
                   <Text style={{ fontSize: 20, color: C.accent }}>+</Text>
@@ -351,76 +352,55 @@ export default function SessionScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  summaryCard: { marginBottom: 12, alignItems: 'center' },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 4 },
-  bigPot: { fontSize: 38, fontWeight: '800', color: C.accent, marginBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  metaText: { fontSize: 13, color: C.gray, flex: 1 },
-  diffWarn: { fontSize: 12, color: C.red, fontWeight: '600' },
-  closedBanner: {
-    marginTop: 10, backgroundColor: '#1a3a2a',
-    paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8,
-  },
-  closedText: { fontSize: 13, color: C.green, fontWeight: '700' },
-  actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  actionBtn: {
-    flex: 1, backgroundColor: C.card, borderRadius: 12,
-    borderWidth: 1, borderColor: C.cardBorder,
-    paddingVertical: 12, alignItems: 'center',
-  },
-  actionIcon: { fontSize: 22, marginBottom: 4 },
-  actionText: { fontSize: 12, fontWeight: '600', color: C.white },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 10 },
-  avatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
-  },
-  avatarText: { fontSize: 15, fontWeight: '700', color: C.accent },
-  avatarSmall: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
-  },
-  avatarTextSmall: { fontSize: 13, fontWeight: '700', color: C.accent },
-  playerName: { flex: 1, fontSize: 16, fontWeight: '700', color: C.white },
-  label: { fontSize: 11, fontWeight: '600', color: C.gray, letterSpacing: 0.5, marginBottom: 6 },
-  buyRow: { marginBottom: 5, gap: 6 },
-  buyText: { flex: 1, fontSize: 14, color: C.white },
-  buyTime: { fontSize: 12, color: C.muted, marginRight: 8 },
-  emptyBuys: { fontSize: 13, color: C.muted, marginBottom: 6 },
-  totalLabel: { flex: 1, fontSize: 13, color: C.gray },
-  totalAmount: { fontSize: 15, fontWeight: '700', color: C.white },
-  addBuyBtn: { marginTop: 8, paddingVertical: 6 },
-  addBuyText: { fontSize: 14, color: C.accent, fontWeight: '600' },
-  finalAmount: { fontSize: 20, fontWeight: '700', color: C.white, marginTop: 2 },
-  balanceBox: { marginTop: 10, padding: 10, borderRadius: 10, alignItems: 'center' },
-  winBox: { backgroundColor: '#0a1e40' },
-  loseBox: { backgroundColor: '#2a0d0d' },
-  evenBox: { backgroundColor: '#1a1a1a' },
-  balanceMsg: { fontSize: 15, fontWeight: '700' },
-  addPlayerBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 14, borderWidth: 1, borderColor: C.cardBorder,
-    borderRadius: 12, borderStyle: 'dashed', marginBottom: 12,
-  },
-  addPlayerText: { fontSize: 15, color: C.accent, fontWeight: '600' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  modalBox: {
-    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24,
-  },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 4 },
-  modalSub: { fontSize: 13, color: C.gray, marginBottom: 14 },
-  noPlayersText: { fontSize: 14, color: C.gray, marginBottom: 16, lineHeight: 20 },
-  playerOption: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.cardBorder,
-  },
-  playerOptionText: { flex: 1, fontSize: 15, color: C.white, fontWeight: '500' },
-  input: {
-    backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder,
-    padding: 13, color: C.white, fontSize: 15, marginBottom: 16,
-  },
-  amountInput: { fontSize: 22, fontWeight: '700', color: C.accent },
-  modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-});
+const styles = {
+  ...GS,
+  ...StyleSheet.create({
+    // modalTitle se sobreescribe porque en esta pantalla va seguido de modalSub (menos margen)
+    modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 4 },
+    summaryCard: { marginBottom: 12, alignItems: 'center' },
+    sectionLabel: { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 4 },
+    bigPot: { fontSize: 38, fontWeight: '800', color: C.accent, marginBottom: 4 },
+    metaText: { fontSize: 13, color: C.gray, flex: 1 },
+    diffWarn: { fontSize: 12, color: C.red, fontWeight: '600' },
+    closedBanner: {
+      marginTop: 10, backgroundColor: '#1a3a2a',
+      paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8,
+    },
+    closedText: { fontSize: 13, color: C.green, fontWeight: '700' },
+    actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+    actionBtn: {
+      flex: 1, backgroundColor: C.card, borderRadius: 12,
+      borderWidth: 1, borderColor: C.cardBorder,
+      paddingVertical: 12, alignItems: 'center',
+    },
+    actionIcon: { fontSize: 22, marginBottom: 4 },
+    actionText: { fontSize: 12, fontWeight: '600', color: C.white },
+    label: { fontSize: 11, fontWeight: '600', color: C.gray, letterSpacing: 0.5, marginBottom: 6 },
+    buyRow: { marginBottom: 5, gap: 6 },
+    buyText: { flex: 1, fontSize: 14, color: C.white },
+    buyTime: { fontSize: 12, color: C.muted, marginRight: 8 },
+    emptyBuys: { fontSize: 13, color: C.muted, marginBottom: 6 },
+    totalLabel: { flex: 1, fontSize: 13, color: C.gray },
+    totalAmount: { fontSize: 15, fontWeight: '700', color: C.white },
+    addBuyBtn: { marginTop: 8, paddingVertical: 6 },
+    addBuyText: { fontSize: 14, color: C.accent, fontWeight: '600' },
+    finalAmount: { fontSize: 20, fontWeight: '700', color: C.white, marginTop: 2 },
+    balanceBox: { marginTop: 10, padding: 10, borderRadius: 10, alignItems: 'center' },
+    winBox: { backgroundColor: '#0a1e40' },
+    loseBox: { backgroundColor: '#2a0d0d' },
+    evenBox: { backgroundColor: '#1a1a1a' },
+    balanceMsg: { fontSize: 15, fontWeight: '700' },
+    addPlayerBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      paddingVertical: 14, borderWidth: 1, borderColor: C.cardBorder,
+      borderRadius: 12, borderStyle: 'dashed', marginBottom: 12,
+    },
+    addPlayerText: { fontSize: 15, color: C.accent, fontWeight: '600' },
+    noPlayersText: { fontSize: 14, color: C.gray, marginBottom: 16, lineHeight: 20 },
+    playerOption: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.cardBorder,
+    },
+    playerOptionText: { flex: 1, fontSize: 15, color: C.white, fontWeight: '500' },
+  }),
+};
