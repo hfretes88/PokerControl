@@ -63,18 +63,20 @@ export default function LineChart({ data, xLabels, height = 220 }) {
                   position: 'absolute',
                   top: toY(v) - 7,
                   left: 0,
-                  right: 0,
+                  width: containerWidth,
                   flexDirection: 'row',
                   alignItems: 'center',
                 }}
               >
-                <Text style={{
-                  width: PAD.left - 6,
-                  textAlign: 'right',
-                  fontSize: 10,
-                  color: isZero ? C.white : C.gray,
-                  fontWeight: isZero ? '700' : '400',
-                }}>
+                <Text
+                  allowFontScaling={false}
+                  style={{
+                    width: PAD.left - 6,
+                    textAlign: 'right',
+                    fontSize: 10,
+                    color: isZero ? C.white : C.gray,
+                    fontWeight: isZero ? '700' : '400',
+                  }}>
                   {label}
                 </Text>
                 <View style={{ width: 6 }} />
@@ -124,6 +126,7 @@ export default function LineChart({ data, xLabels, height = 220 }) {
             <Text
               key={i}
               numberOfLines={1}
+              allowFontScaling={false}
               style={{
                 position: 'absolute',
                 left: toX(i) - 22,
