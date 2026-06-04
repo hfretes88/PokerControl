@@ -269,6 +269,26 @@ export async function getPlayerStats(playerId) {
   };
 }
 
+// ─── Ranking global ───────────────────────────────────────────────────────────
+
+/**
+ * Ranking de todos los jugadores ordenado por balance histórico.
+ * Solo incluye jugadores con al menos una partida cerrada.
+ */
+export async function getGlobalRanking() {
+  const players = await getPlayers();
+  const results = await Promise.all(
+    players.map(async p => {
+      const stats = await getPlayerStats(p.id);
+      if (!stats) return null;
+      return { playerId: p.id, name: p.name, ...stats };
+    })
+  );
+  return results
+    .filter(Boolean)
+    .sort((a, b) => b.totalBalance - a.totalBalance || b.totalGames - a.totalGames);
+}
+
 // ─── Helpers para compartir ───────────────────────────────────────────────────
 
 export function buildWhatsAppSummary(session) {

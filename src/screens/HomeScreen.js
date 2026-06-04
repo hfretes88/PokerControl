@@ -113,11 +113,18 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.headerIcon}>♠</Text>
           <Text style={styles.title}>Poker Control</Text>
         </View>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Players')}
-          style={styles.playersBtn}>
-          <Text style={styles.playersBtnText}>👥  Jugadores</Text>
-        </TouchableOpacity>
+        <View style={styles.headerBtns}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Ranking')}
+            style={[styles.playersBtn, { marginRight: 8 }]}>
+            <Text style={styles.playersBtnText}>🏆</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Players')}
+            style={styles.playersBtn}>
+            <Text style={styles.playersBtnText}>👥  Jugadores</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -287,6 +294,7 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerIcon: { fontSize: 22, color: C.accent, fontWeight: '900' },
   title: { fontSize: 20, fontWeight: '800', color: C.accent },
+  headerBtns: { flexDirection: 'row', alignItems: 'center' },
   playersBtn: {
     backgroundColor: C.bg, paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,

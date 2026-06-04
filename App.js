@@ -9,6 +9,7 @@ import PlayersScreen from './src/screens/PlayersScreen';
 import SessionScreen from './src/screens/SessionScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import DebtScreen from './src/screens/DebtScreen';
+import RankingScreen from './src/screens/RankingScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,6 +37,11 @@ export default function App() {
           name="Debts"
           component={DebtScreen}
           options={{ title: '💳 Pagos pendientes' }}
+        />
+        <Stack.Screen
+          name="Ranking"
+          component={RankingScreen}
+          options={{ title: '🏆 Ranking' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
