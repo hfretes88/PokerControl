@@ -14,12 +14,20 @@ export default function LineChart({ data, xLabels, height = 220 }) {
 
   const rawMax = Math.max(...data, 0);
   const rawMin = Math.min(...data, 0);
-  const maxVal = Math.ceil(rawMax / 1000) * 1000 || 1000;
-  const minVal = Math.floor(rawMin / 1000) * 1000;
-  const range = maxVal - minVal || 1000;
+  const rawRange = rawMax - rawMin || 1000;
+
+  // Calcula un step "lindo" que dé entre 4-6 ticks
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawRange / 4)));
+  const normalized = rawRange / 4 / magnitude;
+  const niceFactor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  const step = niceFactor * magnitude;
+
+  const minVal = Math.floor(rawMin / step) * step;
+  const maxVal = Math.ceil(rawMax / step) * step || step;
+  const range = maxVal - minVal || step;
 
   const yTicks = [];
-  for (let v = minVal; v <= maxVal; v += 1000) yTicks.push(v);
+  for (let v = minVal; v <= maxVal; v += step) yTicks.push(Math.round(v));
 
   const toX = i => PAD.left + (i / (data.length - 1)) * chartW;
   const toY = v => PAD.top + chartH - ((v - minVal) / range) * chartH;
@@ -55,7 +63,11 @@ export default function LineChart({ data, xLabels, height = 220 }) {
         <>
           {yTicks.map(v => {
             const isZero = v === 0;
-            const label = v === 0 ? '0' : `${v / 1000}k`;
+            const absV = Math.abs(v);
+            const label = v === 0 ? '0'
+              : absV >= 1000000 ? `${v / 1000000}M`
+              : absV >= 1000 ? `${v / 1000}k`
+              : `${v}`;
             return (
               <View
                 key={v}
