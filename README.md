@@ -1,103 +1,97 @@
-# PokerControl
+# ♠ PokerControl
 
-## Mobile application for managing expenses in amateur poker games.
+A mobile app to manage amateur poker games among friends. Track buy-ins, register final results, calculate balances, and settle debts with the minimum number of transfers.
 
-Register players, chip buy-ins, and game results. Automatically calculates balances and generates a list of outstanding payments, optimizing settlements with the minimum number of transfers required to clear all debts.
+> Built with [React Native](https://reactnative.dev) and developed with the assistance of [Claude](https://claude.ai) by Anthropic.
 
-This is a [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+---
 
-# Getting Started
+## Features
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+- **Sessions** — Create and name poker sessions, set a starting buy-in per player, and close them when the game ends.
+- **Players** — Maintain a roster of recurring players across sessions.
+- **Buy-ins** — Record multiple chip purchases per player during a session, with timestamps.
+- **Results** — Register each player's final chip count and instantly see their profit/loss.
+- **Debt settlement** — Automatically calculates who owes whom using a minimum-transfers algorithm.
+- **Stats** — Per-player history with win rate, best/worst game, and a balance chart for the last 6 sessions.
+- **Ranking** — Global leaderboard sorted by historical balance with a podium for the top 3.
+- **WhatsApp sharing** — Share a formatted game summary directly to a WhatsApp chat.
 
-## Step 1: Start Metro
+---
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Tech Stack
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+| Layer | Technology |
+|---|---|
+| Framework | React Native 0.76 |
+| Navigation | React Navigation (Stack + Bottom Tabs) |
+| Storage | AsyncStorage |
+| Safe area | react-native-safe-area-context |
 
-```sh
-# Using npm
-npm start
+---
 
-# OR using Yarn
-yarn start
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── UI.js             # Shared components (Card, Btn, BalanceBadge) and color tokens
+│   ├── GlobalStyles.js   # Shared StyleSheet tokens used across all screens
+│   ├── LineChart.js      # Custom balance chart with zero-crossing color split
+│   └── InfoModal.js      # Reusable info modal component
+├── screens/
+│   ├── HomeScreen.js     # Session list and new session creation
+│   ├── SessionScreen.js  # Session detail: buy-ins, results, close
+│   ├── DebtScreen.js     # Debt settlement view
+│   ├── PlayersScreen.js  # Player management
+│   ├── RankingScreen.js  # Global leaderboard
+│   └── StatsScreen.js    # Per-player stats and balance chart
+└── storage/
+    └── storage.js        # AsyncStorage CRUD, calculations and stats logic
 ```
 
-## Step 2: Build and run your app
+---
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Getting Started
 
-### Android
+### Prerequisites
+
+Make sure you have completed the [React Native environment setup](https://reactnative.dev/docs/set-up-your-environment).
+
+### Install dependencies
 
 ```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+npm install
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+### iOS — install pods
 
 ```sh
 bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
 bundle exec pod install
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### Run
 
 ```sh
-# Using npm
-npm run ios
+# Start Metro
+npm start
 
-# OR using Yarn
-yarn ios
+# Android
+npm run android
+
+# iOS
+npm run ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Contributing
 
-## Step 3: Modify your app
+Pull requests are welcome. For significant changes, open an issue first to discuss what you'd like to change.
 
-Now that you have successfully run the app, let's make changes!
+---
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+## License
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+MIT
