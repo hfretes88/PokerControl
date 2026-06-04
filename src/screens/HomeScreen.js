@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessions, createSessionWithBuys, deleteSession, getPlayers } from '../storage/storage';
 import { C, Card, Btn, formatMoney } from '../components/UI';
+import InfoModal from '../components/InfoModal';
 
 function defaultSessionName() {
   const d = new Date();
@@ -21,6 +22,7 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [aboutVisible, setAboutVisible] = useState(false);
   const [sessionName, setSessionName] = useState('');
   const [allPlayers, setAllPlayers] = useState([]);
   const [selectedIds, setSelectedIds] = useState({});
@@ -111,7 +113,9 @@ export default function HomeScreen({ navigation }) {
       <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerIcon}>♠</Text>
-          <Text style={styles.title}>Poker Control</Text>
+          <TouchableOpacity onPress={() => setAboutVisible(true)} activeOpacity={0.7}>
+            <Text style={styles.title}>Poker Control</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.headerBtns}>
           <TouchableOpacity
@@ -188,6 +192,19 @@ export default function HomeScreen({ navigation }) {
         activeOpacity={0.85}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      <InfoModal
+        visible={aboutVisible}
+        onClose={() => setAboutVisible(false)}
+        title="♠ Poker Control"
+      >
+        <Text style={styles.aboutText}>
+          Poker Control te permite organizar y registrar tus partidas de poker entre amigos.
+        </Text>
+        <Text style={styles.aboutText}>
+          Creá sesiones, sumá jugadores, registrá compras y finalizá partidas para llevar un historial completo de resultados, balances y estadísticas de cada jugador.
+        </Text>
+      </InfoModal>
 
       {/* Modal nueva partida */}
       <Modal visible={modalVisible} transparent animationType="slide">
@@ -385,4 +402,5 @@ const styles = StyleSheet.create({
   },
   previewText: { fontSize: 13, color: C.green, fontWeight: '700' },
   modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
+  aboutText: { fontSize: 14, color: C.gray, lineHeight: 22, marginBottom: 10 },
 });
