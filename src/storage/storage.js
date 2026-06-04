@@ -254,6 +254,7 @@ export async function getPlayerStats(playerId) {
   const totalBalance = history.reduce((sum, h) => sum + h.balance, 0);
   const wins = history.filter(h => h.balance > 0).length;
   const losses = history.filter(h => h.balance < 0).length;
+  const ties = history.filter(h => h.balance === 0).length;
   const bestGame = history.reduce((best, h) => h.balance > best.balance ? h : best, history[0]);
   const worstGame = history.reduce((worst, h) => h.balance < worst.balance ? h : worst, history[0]);
 
@@ -261,6 +262,7 @@ export async function getPlayerStats(playerId) {
     totalGames: history.length,
     wins,
     losses,
+    ties,
     winRate: Math.round((wins / history.length) * 100),
     totalBalance,
     bestGame,

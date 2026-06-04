@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPlayerStats } from '../storage/storage';
 import { C, Card, Divider, formatMoney } from '../components/UI';
+import LineChart from '../components/LineChart';
 
 export default function StatsScreen({ route }) {
   const { playerId, playerName } = route.params;
@@ -74,6 +75,15 @@ export default function StatsScreen({ route }) {
               <Text style={[styles.statNum, { color: C.red }]}>{stats.losses}</Text>
               <Text style={styles.statLabel}>Perdidas</Text>
             </View>
+            {stats.ties > 0 && (
+              <>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNum, { color: C.gray }]}>{stats.ties}</Text>
+                  <Text style={styles.statLabel}>Empates</Text>
+                </View>
+              </>
+            )}
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={[styles.statNum, { color: C.accent }]}>{stats.winRate}%</Text>
@@ -81,6 +91,22 @@ export default function StatsScreen({ route }) {
             </View>
           </View>
         </Card>
+
+        {/* Gráfico de balance */}
+        {stats.history.length >= 2 && (() => {
+          const chronological = [...stats.history].reverse().slice(-6);
+          return (
+            <Card style={styles.chartCard}>
+              <Text style={styles.chartTitle}>Balance por partida</Text>
+              <Text style={styles.chartSubtitle}>Escala x1.000</Text>
+              <LineChart
+                data={chronological.map(h => h.balance)}
+                xLabels={chronological.map(h => h.sessionName)}
+                height={220}
+              />
+            </Card>
+          );
+        })()}
 
         {/* Mejor y peor partida */}
         <View style={styles.row}>
@@ -156,6 +182,9 @@ const styles = StyleSheet.create({
   halfLabel: { fontSize: 12, color: C.gray, marginBottom: 6 },
   halfAmount: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
   halfSession: { fontSize: 11, color: C.muted },
+  chartCard: { marginBottom: 12 },
+  chartTitle: { fontSize: 14, fontWeight: '700', color: C.white, marginBottom: 2 },
+  chartSubtitle: { fontSize: 11, color: C.gray, marginBottom: 4 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 10, marginTop: 4 },
   histRow: { flexDirection: 'row', alignItems: 'center' },
   histSession: { fontSize: 14, fontWeight: '600', color: C.white, marginBottom: 3 },
