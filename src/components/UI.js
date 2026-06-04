@@ -4,15 +4,15 @@ import {
 } from 'react-native';
 
 export const C = {
-  bg: '#0f1923',
-  card: '#1a2535',
-  cardBorder: '#243044',
-  accent: '#f0c040',
+  bg: '#080e1a',
+  card: '#0e1e35',
+  cardBorder: '#1a3058',
+  accent: '#4da6ff',
   green: '#27ae60',
   red: '#e74c3c',
-  gray: '#8899aa',
-  white: '#f0f4f8',
-  muted: '#4a5a6a',
+  gray: '#6b8cad',
+  white: '#ddeaf8',
+  muted: '#2a3f5f',
 };
 
 export function Card({ children, style }) {
@@ -21,7 +21,7 @@ export function Card({ children, style }) {
 
 export function Btn({ label, onPress, color, small, disabled, loading }) {
   const bg = disabled ? C.muted : (color || C.accent);
-  const textColor = (color === C.green || color === C.red) ? '#fff' : '#0f1923';
+  const textColor = (color === C.green || color === C.red) ? '#fff' : '#080e1a';
   return (
     <TouchableOpacity
       style={[styles.btn, { backgroundColor: bg }, small && styles.btnSmall]}

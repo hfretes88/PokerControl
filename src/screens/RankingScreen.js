@@ -9,7 +9,7 @@ import { getGlobalRanking } from '../storage/storage';
 import { C, Card, formatMoney } from '../components/UI';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
-const PODIUM_COLORS = ['#f0c040', '#b0b8c0', '#cd7f32'];
+const PODIUM_COLORS = ['#4da6ff', '#b0b8c0', '#cd7f32'];
 
 export default function RankingScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -167,13 +167,13 @@ const styles = StyleSheet.create({
   },
   podiumFirst: {
     paddingVertical: 22,
-    borderColor: '#f0c040',
+    borderColor: '#4da6ff',
     borderWidth: 1.5,
   },
   podiumMedal: { fontSize: 22, marginBottom: 8 },
   podiumAvatar: {
     width: 44, height: 44, borderRadius: 22, borderWidth: 2,
-    backgroundColor: '#1a2535', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0e1e35', alignItems: 'center', justifyContent: 'center',
     marginBottom: 8,
   },
   podiumAvatarText: { fontSize: 18, fontWeight: '800' },
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   position: { fontSize: 14, fontWeight: '700', color: C.gray },
   avatar: {
     width: 36, height: 36, borderRadius: 18, borderWidth: 1.5,
-    backgroundColor: '#1a2535', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0e1e35', alignItems: 'center', justifyContent: 'center',
   },
   avatarText: { fontSize: 15, fontWeight: '800' },
   playerName: { fontSize: 15, fontWeight: '700', color: C.white, marginBottom: 3 },

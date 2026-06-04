@@ -375,12 +375,12 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 10 },
   avatar: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
   avatarText: { fontSize: 15, fontWeight: '700', color: C.accent },
   avatarSmall: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
   avatarTextSmall: { fontSize: 13, fontWeight: '700', color: C.accent },
   playerName: { flex: 1, fontSize: 16, fontWeight: '700', color: C.white },
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   addBuyText: { fontSize: 14, color: C.accent, fontWeight: '600' },
   finalAmount: { fontSize: 20, fontWeight: '700', color: C.white, marginTop: 2 },
   balanceBox: { marginTop: 10, padding: 10, borderRadius: 10, alignItems: 'center' },
-  winBox: { backgroundColor: '#0d2a1a' },
+  winBox: { backgroundColor: '#0a1e40' },
   loseBox: { backgroundColor: '#2a0d0d' },
   evenBox: { backgroundColor: '#1a1a1a' },
   balanceMsg: { fontSize: 15, fontWeight: '700' },

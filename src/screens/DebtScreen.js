@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   avatar: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
   avatarText: { fontSize: 14, fontWeight: '700', color: C.accent },
   playerName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.white },

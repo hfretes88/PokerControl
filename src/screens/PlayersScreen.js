@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   avatar: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center', marginRight: 12,
+    backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 12,
   },
   avatarText: { fontSize: 16, fontWeight: '700', color: C.accent },
   playerName: { flex: 1, fontSize: 16, fontWeight: '600', color: C.white },
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     borderRadius: 29, alignItems: 'center', justifyContent: 'center',
     elevation: 8, shadowColor: C.accent, shadowOpacity: 0.5, shadowRadius: 12,
   },
-  fabText: { fontSize: 34, color: '#0f1923', fontWeight: '300', lineHeight: 40 },
+  fabText: { fontSize: 34, color: '#080e1a', fontWeight: '300', lineHeight: 40 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalBox: {
     backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24,
