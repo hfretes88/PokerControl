@@ -244,27 +244,67 @@ export async function getPlayerHistory(playerId) {
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
+// ─── Ajustes manuales ────────────────────────────────────────────────────────
+
+export async function addPlayerAdjustment(playerId, { description, amount }) {
+  const players = await getPlayers();
+  const idx = players.findIndex(p => p.id === playerId);
+  if (idx === -1) return null;
+  if (!players[idx].adjustments) players[idx].adjustments = [];
+  players[idx].adjustments.push({
+    id: Date.now().toString(),
+    description: description.trim(),
+    amount: Number(amount),
+    date: new Date().toISOString(),
+  });
+  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+  return players[idx];
+}
+
+export async function deletePlayerAdjustment(playerId, adjustmentId) {
+  const players = await getPlayers();
+  const idx = players.findIndex(p => p.id === playerId);
+  if (idx === -1) return null;
+  players[idx].adjustments = (players[idx].adjustments || []).filter(a => a.id !== adjustmentId);
+  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+  return players[idx];
+}
+
 /**
  * Stats globales de un jugador.
  */
 export async function getPlayerStats(playerId) {
   const history = await getPlayerHistory(playerId);
-  if (history.length === 0) return null;
+  const players = await getPlayers();
+  const player = players.find(p => p.id === playerId);
+  const adjustments = (player?.adjustments || [])
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const adjustmentsTotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
 
-  const totalBalance = history.reduce((sum, h) => sum + h.balance, 0);
+  if (history.length === 0 && adjustments.length === 0) return null;
+
   const wins = history.filter(h => h.balance > 0).length;
   const losses = history.filter(h => h.balance < 0).length;
   const ties = history.filter(h => h.balance === 0).length;
-  const bestGame = history.reduce((best, h) => h.balance > best.balance ? h : best, history[0]);
-  const worstGame = history.reduce((worst, h) => h.balance < worst.balance ? h : worst, history[0]);
+  const bestGame = history.length > 0
+    ? history.reduce((best, h) => h.balance > best.balance ? h : best, history[0])
+    : null;
+  const worstGame = history.length > 0
+    ? history.reduce((worst, h) => h.balance < worst.balance ? h : worst, history[0])
+    : null;
+  const sessionBalance = history.reduce((sum, h) => sum + h.balance, 0);
 
   return {
     totalGames: history.length,
     wins,
     losses,
     ties,
-    winRate: Math.round((wins / history.length) * 100),
-    totalBalance,
+    winRate: history.length > 0 ? Math.round((wins / history.length) * 100) : 0,
+    totalBalance: sessionBalance + adjustmentsTotal,
+    sessionBalance,
+    adjustmentsTotal,
+    adjustments,
     bestGame,
     worstGame,
     history,
