@@ -177,7 +177,9 @@ export function calcSession(session) {
     sum + p.buys.reduce((s, b) => s + b.amount, 0), 0);
   const totalOut = session.participants.reduce((sum, p) =>
     sum + (p.finalAmount ?? 0), 0);
-  return { totalPot, totalOut, diff: totalOut - totalPot };
+  const diff = totalOut - totalPot;
+  const status = diff === 0 ? 'ok' : diff < 0 ? 'faltan' : 'sobran';
+  return { totalPot, totalOut, diff, status };
 }
 
 /**
@@ -350,8 +352,7 @@ export function buildWhatsAppSummary(session) {
     } else {
       const emoji = balance > 0 ? '🏆' : balance < 0 ? '💸' : '🤝';
       const sign = balance > 0 ? '+' : '';
-      text += `${emoji} ${p.name}: ${sign}$${balance.toLocaleString('es-AR')}\n`;
-      text += `   Invertido: $${totalBought.toLocaleString('es-AR')} → Final: $${finalAmount.toLocaleString('es-AR')}\n`;
+      text += `${emoji} ${p.name}: ${balance.toLocaleString('es-AR')}$\n`;
     }
   });
 

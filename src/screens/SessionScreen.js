@@ -88,10 +88,10 @@ export default function SessionScreen({ route, navigation }) {
   }
 
   async function handleCloseSession() {
-    const { diff } = calcSession(session);
+    const { diff, status } = calcSession(session);
     const msg = Math.abs(diff) > 1
-      ? `⚠️ Los montos no cuadran (diferencia: ${formatMoney(diff)}). ¿Cerrar igual?`
-      : '¿Cerrar y registrar resultados finales?';
+      ? `⚠️ Los montos no cuadran, ${status} ${formatMoney(diff)}.\n¿Cerrar igual?`
+      : 'Los montons cuadran bien.\n¿Cerrar y registrar resultados finales?';
     Alert.alert('Cerrar partida', msg, [
       { text: 'Cancelar', style: 'cancel' },
       {
