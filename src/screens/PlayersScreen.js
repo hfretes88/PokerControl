@@ -51,6 +51,18 @@ export default function PlayersScreen({ navigation }) {
         data={players}
         keyExtractor={item => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: fabBottom + 70, flexGrow: 1 }}
+        ListHeaderComponent={
+          <>
+            <TouchableOpacity
+              style={styles.rankingBtn}
+              onPress={() => navigation.navigate('PendingDebts')}
+              activeOpacity={0.8}>
+              <Text style={styles.rankingBtnIcon}>💳</Text>
+              <Text style={styles.rankingBtnText}>Ver deudas pendientes</Text>
+              <Text style={styles.rankingBtnArrow}>›</Text>
+            </TouchableOpacity>
+          </>
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>👤</Text>

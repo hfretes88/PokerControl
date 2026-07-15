@@ -10,6 +10,7 @@ import { getPlayerStats, addPlayerAdjustment, deletePlayerAdjustment } from '../
 import { C, Card, Btn, Divider, formatMoney } from '../components/UI';
 import { GS } from '../components/GlobalStyles';
 import LineChart from '../components/LineChart';
+import PlayerDebtsSection from '../components/PlayerDebtsSection';
 
 export default function StatsScreen({ route }) {
   const { playerId, playerName } = route.params;
@@ -153,7 +154,6 @@ export default function StatsScreen({ route }) {
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
-
         {/* Resumen global */}
         <Card style={styles.heroCard}>
           <Text style={styles.heroLabel}>BALANCE HISTÓRICO</Text>
@@ -273,7 +273,10 @@ export default function StatsScreen({ route }) {
             </Card>
           ))
         )}
-
+        <Text style={styles.sectionTitle}>Deudas pendientes</Text>
+        <Card>
+          <PlayerDebtsSection playerId={playerId} />
+        </Card>
         {/* Historial de partidas */}
         {stats.history.length > 0 && (
           <>
