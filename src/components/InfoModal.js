@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
-  ScrollView, Share, Alert, ActivityIndicator
+  ScrollView, Share, Alert, ActivityIndicator, Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, Btn } from './UI';
+import RNFS from 'react-native-fs';
 
 const APP_VERSION = '1.0.0';
 
@@ -35,17 +36,28 @@ export default function InfoModal({ visible, onClose, title, children }) {
   async function handleExport() {
     setExporting(true);
     try {
-      const payload = await exportAllData();
-      const json = JSON.stringify(payload, null, 2);
+      const payload  = await exportAllData();
+      const json     = JSON.stringify(payload, null, 2);
+      const filename = `PokerControl_${new Date().toISOString().slice(0, 10)}.json`;
+      const path     = `${RNFS.DocumentDirectoryPath}/${filename}`;
 
-      const totalSessions = payload.data?.poker_sessions?.length ?? 0;
-      const totalPlayers  = payload.data?.poker_players?.length ?? 0;
+      await RNFS.writeFile(path, json, 'utf8');
 
-      await Share.share({
-        title:   'PokerControl — Backup de datos',
-        message: json,
-        // En iOS también aparece como archivo si el receptor lo soporta
-      });
+      if (Platform.OS === 'android') {
+        // En Android usamos el Intent de share con content:// URI via FileProvider
+        await RNFS.scanFile(path); // indexa el archivo
+        await Share.share({
+          title:   'PokerControl — Backup',
+          message: json, // fallback texto
+          url:     `file://${path}`,
+        });
+      } else {
+        // iOS comparte directo como archivo
+        await Share.share({
+          title: 'PokerControl — Backup',
+          url:   path,
+        });
+      }
 
     } catch (err) {
       if (err.message !== 'User did not share') {
