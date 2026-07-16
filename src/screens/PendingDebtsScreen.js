@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Modal, TextInput, Alert, KeyboardAvoidingView, Platform
+  Modal, TextInput, Alert, KeyboardAvoidingView, Platform, Share
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,28 @@ import {
   debtStatusColor,
 } from '../storage/debts';
 import { C, Card, Btn, formatMoney } from '../components/UI';
+
+function buildWhatsAppText(groups) {
+  if (groups.length === 0) return '🤝 No hay deudas pendientes.';
+
+  let text = `💳 *Pagos pendientes:*\n`;
+
+  groups.forEach(group => {
+    // Agrupar por acreedor
+    const byCreditor = {};
+    group.debts.forEach(d => {
+      const key = d.toPlayer.name;
+      if (!byCreditor[key]) byCreditor[key] = { name: key, total: 0 };
+      byCreditor[key].total += d.pendingAmount;
+    });
+
+    Object.values(byCreditor).forEach(creditor => {
+      text += `•  ${group.player.name} le paga ${formatMoney(creditor.total)} a ${creditor.name}\n`;
+    });
+  });
+
+  return text;
+}
 
 // ─── Modal de pago ────────────────────────────────────────────
 function PaymentModal({ debt, visible, onClose, onPaid }) {
@@ -70,7 +92,6 @@ function PaymentModal({ debt, visible, onClose, onPaid }) {
         <View style={[styles.modalBox, { paddingBottom: insets.bottom + 16 }]}>
           <Text style={styles.modalTitle}>Registrar pago</Text>
 
-          {/* Info de la deuda */}
           <View style={styles.debtSummary}>
             <View style={styles.debtPlayers}>
               <View style={styles.playerChip}>
@@ -106,7 +127,6 @@ function PaymentModal({ debt, visible, onClose, onPaid }) {
             </View>
           </View>
 
-          {/* Pago parcial */}
           <Text style={styles.fieldLabel}>MONTO QUE PAGA AHORA</Text>
           <TextInput
             style={styles.input}
@@ -147,7 +167,6 @@ function DebtCard({ debt, onPay }) {
 
   return (
     <View style={styles.debtCard}>
-      {/* Header */}
       <View style={styles.debtCardHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.debtCardSession}>{debt.sessionName}</Text>
@@ -169,7 +188,6 @@ function DebtCard({ debt, onPay }) {
         </View>
       </View>
 
-      {/* Barra de progreso */}
       {debt.originalAmount > 0 && (
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, {
@@ -179,7 +197,6 @@ function DebtCard({ debt, onPay }) {
         </View>
       )}
 
-      {/* Historial de pagos */}
       {debt.payments.length > 0 && (
         <View style={styles.paymentsHistory}>
           {debt.payments.map((p, i) => (
@@ -195,7 +212,6 @@ function DebtCard({ debt, onPay }) {
         </View>
       )}
 
-      {/* Botón pagar */}
       {debt.status !== 'paid' && (
         <TouchableOpacity style={styles.payBtn} onPress={() => onPay(debt)} activeOpacity={0.8}>
           <Text style={styles.payBtnText}>+ Registrar pago</Text>
@@ -210,7 +226,7 @@ export default function PendingDebtsScreen() {
   const insets = useSafeAreaInsets();
   const [groups, setGroups]     = useState([]);
   const [loading, setLoading]   = useState(true);
-  const [payModal, setPayModal] = useState(null); // debt seleccionada
+  const [payModal, setPayModal] = useState(null);
 
   useFocusEffect(
     useCallback(() => { load(); }, [])
@@ -221,6 +237,15 @@ export default function PendingDebtsScreen() {
     const data = await getPendingDebtsByDebtor();
     setGroups(data);
     setLoading(false);
+  }
+
+  async function handleShare() {
+    const text = buildWhatsAppText(groups);
+    try {
+      await Share.share({ message: text, title: 'Deudas pendientes' });
+    } catch (err) {
+      Alert.alert('Error', err.message);
+    }
   }
 
   if (loading) {
@@ -237,9 +262,7 @@ export default function PendingDebtsScreen() {
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🤝</Text>
           <Text style={styles.emptyText}>Sin deudas pendientes</Text>
-          <Text style={styles.emptyMuted}>
-            Todos los balances están saldados.
-          </Text>
+          <Text style={styles.emptyMuted}>Todos los balances están saldados.</Text>
         </View>
       </SafeAreaView>
     );
@@ -249,10 +272,14 @@ export default function PendingDebtsScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
 
+        {/* Botón compartir */}
+        <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.8}>
+          <Text style={styles.shareBtnIcon}>📤</Text>
+          <Text style={styles.shareBtnText}>Compartir por WhatsApp</Text>
+        </TouchableOpacity>
+
         {groups.map(group => (
           <View key={group.player.id} style={styles.group}>
-
-            {/* Header del deudor */}
             <View style={styles.groupHeader}>
               <View style={styles.groupAvatar}>
                 <Text style={styles.groupAvatarText}>
@@ -271,7 +298,6 @@ export default function PendingDebtsScreen() {
               </View>
             </View>
 
-            {/* Deudas del jugador */}
             {group.debts.map(debt => (
               <DebtCard
                 key={debt.id}
@@ -301,12 +327,19 @@ const styles = StyleSheet.create({
   emptyText:     { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
   emptyMuted:    { fontSize: 13, color: C.gray, textAlign: 'center' },
 
+  // Botón compartir
+  shareBtn:      {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0d2a1a', borderRadius: 12,
+    borderWidth: 1, borderColor: C.green + '44',
+    paddingVertical: 12, gap: 8, marginBottom: 20,
+  },
+  shareBtnIcon:  { fontSize: 18 },
+  shareBtnText:  { fontSize: 14, fontWeight: '700', color: C.green },
+
   // Grupo por deudor
   group:         { marginBottom: 20 },
-  groupHeader:   {
-    flexDirection: 'row', alignItems: 'center',
-    marginBottom: 10, gap: 12,
-  },
+  groupHeader:   { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 12 },
   groupAvatar:   {
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center',
@@ -327,32 +360,17 @@ const styles = StyleSheet.create({
   debtCardHeader:  { flexDirection: 'row', marginBottom: 10 },
   debtCardSession: { fontSize: 14, fontWeight: '700', color: C.white, marginBottom: 3 },
   debtCardDate:    { fontSize: 11, color: C.gray },
-  statusBadge:     {
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 6, borderWidth: 1, marginBottom: 4,
-  },
+  statusBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, marginBottom: 4 },
   statusText:    { fontSize: 11, fontWeight: '700' },
   debtPending:   { fontSize: 16, fontWeight: '800' },
-
-  // Barra de progreso
-  progressBar:   {
-    height: 4, backgroundColor: C.cardBorder,
-    borderRadius: 2, marginBottom: 10, overflow: 'hidden',
-  },
+  progressBar:   { height: 4, backgroundColor: C.cardBorder, borderRadius: 2, marginBottom: 10, overflow: 'hidden' },
   progressFill:  { height: '100%', borderRadius: 2 },
-
-  // Historial de pagos
   paymentsHistory: { marginBottom: 10 },
-  paymentRow:    {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 6, paddingVertical: 3,
-  },
+  paymentRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },
   paymentIcon:   { fontSize: 12, color: C.green },
   paymentAmount: { fontSize: 13, fontWeight: '700', color: C.green },
   paymentNote:   { flex: 1, fontSize: 12, color: C.gray },
   paymentDate:   { fontSize: 11, color: C.muted },
-
-  // Botón pagar
   payBtn:        {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 8, borderRadius: 8,
@@ -362,29 +380,12 @@ const styles = StyleSheet.create({
 
   // Modal
   modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  modalBox:      {
-    backgroundColor: C.card, borderTopLeftRadius: 24,
-    borderTopRightRadius: 24, padding: 24,
-  },
+  modalBox:      { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
   modalTitle:    { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 16 },
-
-  debtSummary:   {
-    backgroundColor: C.bg, borderRadius: 12,
-    padding: 14, marginBottom: 20,
-    borderWidth: 1, borderColor: C.cardBorder,
-  },
-  debtPlayers:   {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 10, marginBottom: 8,
-  },
-  playerChip:    {
-    backgroundColor: '#2a0d0d', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: C.red + '44',
-  },
-  playerChipGreen: {
-    backgroundColor: '#0d2a1a', borderColor: C.green + '44',
-  },
+  debtSummary:   { backgroundColor: C.bg, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: C.cardBorder },
+  debtPlayers:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 },
+  playerChip:    { backgroundColor: '#2a0d0d', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.red + '44' },
+  playerChipGreen: { backgroundColor: '#0d2a1a', borderColor: C.green + '44' },
   playerChipText:  { fontSize: 14, fontWeight: '700', color: C.red },
   debtArrow:     { fontSize: 18, color: C.muted },
   debtSession:   { fontSize: 12, color: C.gray, textAlign: 'center', marginBottom: 12 },
@@ -393,15 +394,7 @@ const styles = StyleSheet.create({
   debtAmountLabel: { fontSize: 10, color: C.gray, marginBottom: 4 },
   debtAmountVal: { fontSize: 16, fontWeight: '800', color: C.white },
   debtAmountDivider: { width: 1, height: 30, backgroundColor: C.cardBorder },
-
-  fieldLabel:    {
-    fontSize: 10, fontWeight: '700', color: C.gray,
-    letterSpacing: 1, marginBottom: 8,
-  },
-  input:         {
-    backgroundColor: C.bg, borderRadius: 10, borderWidth: 1,
-    borderColor: C.cardBorder, padding: 13,
-    color: C.white, fontSize: 16, fontWeight: '600', marginBottom: 12,
-  },
+  fieldLabel:    { fontSize: 10, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 8 },
+  input:         { backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder, padding: 13, color: C.white, fontSize: 16, fontWeight: '600', marginBottom: 12 },
   modalBtns:     { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
 });
