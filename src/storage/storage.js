@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { generateDebtsFromSession } from './debts';
 
 const KEYS = {
   SESSIONS: 'poker_sessions',
@@ -91,6 +92,8 @@ export async function closeSession(sessionId) {
   sessions[idx].status = 'closed';
   sessions[idx].closedAt = new Date().toISOString();
   await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+  const debts = calcDebts(sessions[idx]);
+  await generateDebtsFromSession(sessions[idx], debts);
   return sessions[idx];
 }
 
@@ -177,7 +180,9 @@ export function calcSession(session) {
     sum + p.buys.reduce((s, b) => s + b.amount, 0), 0);
   const totalOut = session.participants.reduce((sum, p) =>
     sum + (p.finalAmount ?? 0), 0);
-  return { totalPot, totalOut, diff: totalOut - totalPot };
+  const diff = totalOut - totalPot;
+  const status = diff === 0 ? 'ok' : diff < 0 ? 'faltan' : 'sobran';
+  return { totalPot, totalOut, diff, status };
 }
 
 /**
@@ -188,36 +193,42 @@ export function calcDebts(session) {
   const balances = session.participants
     .filter(p => p.finalAmount !== null)
     .map(p => {
-      const { balance } = calcParticipant(p);
-      return { name: p.name, balance };
+      const totalBought = p.buys.reduce((sum, b) => sum + b.amount, 0);
+      const balance = (p.finalAmount ?? 0) - totalBought;
+      return { id: p.playerId, name: p.name, balance };
     });
 
   if (balances.length === 0) return [];
 
-  // Separamos deudores (balance negativo) y acreedores (balance positivo)
-  const debtors = balances.filter(b => b.balance < 0).map(b => ({ ...b, balance: Math.abs(b.balance) }));
-  const creditors = balances.filter(b => b.balance > 0).map(b => ({ ...b }));
+  const debtors   = balances
+    .filter(b => b.balance < 0)
+    .map(b => ({ ...b, balance: Math.abs(b.balance) }));
+  const creditors = balances
+    .filter(b => b.balance > 0)
+    .map(b => ({ ...b }));
 
   const transactions = [];
   let i = 0, j = 0;
 
   while (i < debtors.length && j < creditors.length) {
     const amount = Math.min(debtors[i].balance, creditors[j].balance);
-    if (amount > 0.5) { // ignoramos diferencias de centavos
+    if (amount > 0.5) {
       transactions.push({
-        from: debtors[i].name,
-        to: creditors[j].name,
+        from:   debtors[i].name,
+        fromId: debtors[i].id,      // ← nuevo
+        to:     creditors[j].name,
+        toId:   creditors[j].id,    // ← nuevo
         amount: Math.round(amount),
       });
     }
-    debtors[i].balance -= amount;
+    debtors[i].balance   -= amount;
     creditors[j].balance -= amount;
-    if (debtors[i].balance < 0.5) i++;
+    if (debtors[i].balance < 0.5)   i++;
     if (creditors[j].balance < 0.5) j++;
   }
-
   return transactions;
 }
+
 
 /**
  * Historial de un jugador a través de todas las sesiones cerradas.
@@ -244,27 +255,67 @@ export async function getPlayerHistory(playerId) {
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
+// ─── Ajustes manuales ────────────────────────────────────────────────────────
+
+export async function addPlayerAdjustment(playerId, { description, amount }) {
+  const players = await getPlayers();
+  const idx = players.findIndex(p => p.id === playerId);
+  if (idx === -1) return null;
+  if (!players[idx].adjustments) players[idx].adjustments = [];
+  players[idx].adjustments.push({
+    id: Date.now().toString(),
+    description: description.trim(),
+    amount: Number(amount),
+    date: new Date().toISOString(),
+  });
+  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+  return players[idx];
+}
+
+export async function deletePlayerAdjustment(playerId, adjustmentId) {
+  const players = await getPlayers();
+  const idx = players.findIndex(p => p.id === playerId);
+  if (idx === -1) return null;
+  players[idx].adjustments = (players[idx].adjustments || []).filter(a => a.id !== adjustmentId);
+  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+  return players[idx];
+}
+
 /**
  * Stats globales de un jugador.
  */
 export async function getPlayerStats(playerId) {
   const history = await getPlayerHistory(playerId);
-  if (history.length === 0) return null;
+  const players = await getPlayers();
+  const player = players.find(p => p.id === playerId);
+  const adjustments = (player?.adjustments || [])
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const adjustmentsTotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
 
-  const totalBalance = history.reduce((sum, h) => sum + h.balance, 0);
+  if (history.length === 0 && adjustments.length === 0) return null;
+
   const wins = history.filter(h => h.balance > 0).length;
   const losses = history.filter(h => h.balance < 0).length;
   const ties = history.filter(h => h.balance === 0).length;
-  const bestGame = history.reduce((best, h) => h.balance > best.balance ? h : best, history[0]);
-  const worstGame = history.reduce((worst, h) => h.balance < worst.balance ? h : worst, history[0]);
+  const bestGame = history.length > 0
+    ? history.reduce((best, h) => h.balance > best.balance ? h : best, history[0])
+    : null;
+  const worstGame = history.length > 0
+    ? history.reduce((worst, h) => h.balance < worst.balance ? h : worst, history[0])
+    : null;
+  const sessionBalance = history.reduce((sum, h) => sum + h.balance, 0);
 
   return {
     totalGames: history.length,
     wins,
     losses,
     ties,
-    winRate: Math.round((wins / history.length) * 100),
-    totalBalance,
+    winRate: history.length > 0 ? Math.round((wins / history.length) * 100) : 0,
+    totalBalance: sessionBalance + adjustmentsTotal,
+    sessionBalance,
+    adjustmentsTotal,
+    adjustments,
     bestGame,
     worstGame,
     history,
@@ -310,8 +361,7 @@ export function buildWhatsAppSummary(session) {
     } else {
       const emoji = balance > 0 ? '🏆' : balance < 0 ? '💸' : '🤝';
       const sign = balance > 0 ? '+' : '';
-      text += `${emoji} ${p.name}: ${sign}$${balance.toLocaleString('es-AR')}\n`;
-      text += `   Invertido: $${totalBought.toLocaleString('es-AR')} → Final: $${finalAmount.toLocaleString('es-AR')}\n`;
+      text += `${emoji} ${p.name}: ${balance.toLocaleString('es-AR')}$\n`;
     }
   });
 

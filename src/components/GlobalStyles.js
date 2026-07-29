@@ -56,4 +56,13 @@ export const GS = StyleSheet.create({
   // ─── Botón eliminar ──────────────────────────────────────────────────────────
   delBtn: { padding: 8 },
   delText: { fontSize: 16 },
+  rankingBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.card, borderRadius: 12,
+    borderWidth: 1, borderColor: C.cardBorder,
+    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16,
+  },
+  rankingBtnIcon:  { fontSize: 18, marginRight: 10 },
+  rankingBtnText:  { flex: 1, fontSize: 15, fontWeight: '700', color: C.accent },
+  rankingBtnArrow: { fontSize: 22, color: C.muted, fontWeight: '300' },  
 });
