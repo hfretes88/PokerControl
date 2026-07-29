@@ -203,11 +203,11 @@ export default function StatsScreen({ route }) {
 
         {/* Gráfico de balance */}
         {stats.history.length >= 2 && (() => {
-          const chronological = [...stats.history].reverse().slice(-6);
+          const chronological = [...stats.history].reverse();
           return (
             <Card style={styles.chartCard}>
               <Text style={styles.chartTitle}>Balance por partida</Text>
-              <Text style={styles.chartSubtitle}>Escala x1.000</Text>
+              <Text style={styles.chartSubtitle}>Escala x1.000 · deslizá para ver historial</Text>
               <LineChart
                 data={chronological.map(h => h.balance)}
                 xLabels={chronological.map(h => h.sessionName)}

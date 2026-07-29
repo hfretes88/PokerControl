@@ -1,35 +1,38 @@
-import React, { useState } from 'react';
-import { View, Text } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, ScrollView } from 'react-native';
 import { C } from './UI';
 
-const PAD = { left: 44, right: 14, top: 16, bottom: 32 };
+const PAD      = { left: 44, right: 14, top: 16, bottom: 32 };
+const PT_WIDTH = 56; // ancho por punto en el eje X
 
 export default function LineChart({ data, xLabels, height = 220 }) {
-  const [containerWidth, setContainerWidth] = useState(0);
+  const scrollRef = useRef(null);
 
   if (!data || data.length < 2 || !xLabels) return null;
 
-  const chartW = containerWidth - PAD.left - PAD.right;
-  const chartH = height - PAD.top - PAD.bottom;
+  // Ancho total del gráfico según cantidad de puntos
+  const chartW      = PT_WIDTH * (data.length - 1);
+  const totalWidth  = chartW + PAD.left + PAD.right;
+  const chartH      = height - PAD.top - PAD.bottom;
 
-  const rawMax = Math.max(...data, 0);
-  const rawMin = Math.min(...data, 0);
+  // Calcular rango Y con ticks prolijos
+  const rawMax  = Math.max(...data, 0);
+  const rawMin  = Math.min(...data, 0);
   const rawRange = rawMax - rawMin || 1000;
 
-  // Calcula un step "lindo" que dé entre 4-6 ticks
-  const magnitude = Math.pow(10, Math.floor(Math.log10(rawRange / 4)));
+  const magnitude  = Math.pow(10, Math.floor(Math.log10(rawRange / 4)));
   const normalized = rawRange / 4 / magnitude;
   const niceFactor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
   const step = niceFactor * magnitude;
 
   const minVal = Math.floor(rawMin / step) * step;
   const maxVal = Math.ceil(rawMax / step) * step || step;
-  const range = maxVal - minVal || step;
+  const range  = maxVal - minVal || step;
 
   const yTicks = [];
   for (let v = minVal; v <= maxVal; v += step) yTicks.push(Math.round(v));
 
-  const toX = i => PAD.left + (i / (data.length - 1)) * chartW;
+  const toX = i => PAD.left + i * PT_WIDTH;
   const toY = v => PAD.top + chartH - ((v - minVal) / range) * chartH;
 
   const points = data.map((v, i) => ({ x: toX(i), y: toY(v), v }));
@@ -38,7 +41,7 @@ export default function LineChart({ data, xLabels, height = 220 }) {
     const dx = bx - ax;
     const dy = by - ay;
     const length = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    const angle  = Math.atan2(dy, dx) * (180 / Math.PI);
     return { midX: (ax + bx) / 2, midY: (ay + by) / 2, length, angle, color };
   };
 
@@ -47,7 +50,7 @@ export default function LineChart({ data, xLabels, height = 220 }) {
     const q = points[i + 1];
     const crossesZero = (p.v >= 0) !== (q.v >= 0);
     if (crossesZero) {
-      const t = p.v / (p.v - q.v);
+      const t      = p.v / (p.v - q.v);
       const crossX = p.x + t * (q.x - p.x);
       const crossY = toY(0);
       segments.push(makeSeg(p.x, p.y, crossX, crossY, p.v >= 0 ? C.green : C.red));
@@ -57,103 +60,122 @@ export default function LineChart({ data, xLabels, height = 220 }) {
     }
   });
 
+  // Scrollear al final (últimos 6 puntos) al montar
+  useEffect(() => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: false });
+    }, 50);
+  }, [data]);
+
   return (
-    <View style={{ height }} onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}>
-      {containerWidth > 0 && (
-        <>
-          {yTicks.map(v => {
-            const isZero = v === 0;
-            const absV = Math.abs(v);
-            const label = v === 0 ? '0'
-              : absV >= 1000000 ? `${v / 1000000}M`
-              : absV >= 1000 ? `${v / 1000}k`
-              : `${v}`;
-            return (
-              <View
-                key={v}
+    <View style={{ height }}>
+      {/* Eje Y fijo a la izquierda */}
+      <View style={{
+        position: 'absolute', left: 0, top: 0,
+        width: PAD.left, height,
+        zIndex: 2,
+        backgroundColor: C.card, // mismo fondo que la Card
+      }}>
+        {yTicks.map(v => {
+          const absV  = Math.abs(v);
+          const label = v === 0 ? '0'
+            : absV >= 1000000 ? `${v / 1000000}M`
+            : absV >= 1000    ? `${v / 1000}k`
+            : `${v}`;
+          return (
+            <View
+              key={v}
+              style={{ position: 'absolute', top: toY(v) - 7, left: 0, width: PAD.left - 4, alignItems: 'flex-end' }}>
+              <Text
+                allowFontScaling={false}
                 style={{
-                  position: 'absolute',
-                  top: toY(v) - 7,
-                  left: 0,
-                  width: containerWidth,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Text
-                  allowFontScaling={false}
-                  style={{
-                    width: PAD.left - 6,
-                    textAlign: 'right',
-                    fontSize: 10,
-                    color: isZero ? C.white : C.gray,
-                    fontWeight: isZero ? '700' : '400',
-                  }}>
-                  {label}
-                </Text>
-                <View style={{ width: 6 }} />
-                <View style={{
-                  flex: 1,
-                  height: isZero ? 2 : 1,
-                  backgroundColor: isZero ? C.gray : C.cardBorder,
-                }} />
-              </View>
-            );
-          })}
+                  fontSize: 10,
+                  color: v === 0 ? C.white : C.gray,
+                  fontWeight: v === 0 ? '700' : '400',
+                }}>
+                {label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
 
-          {segments.map((seg, i) => (
-            <View
-              key={i}
-              style={{
-                position: 'absolute',
-                left: seg.midX - seg.length / 2,
-                top: seg.midY - 1.5,
-                width: seg.length,
-                height: 2.5,
-                backgroundColor: seg.color,
-                borderRadius: 2,
-                transform: [{ rotate: `${seg.angle}deg` }],
-              }}
-            />
-          ))}
+      {/* Contenido scrolleable */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ width: totalWidth, height }}
+        scrollEventThrottle={16}>
 
-          {points.map((p, i) => (
-            <View
-              key={i}
-              style={{
-                position: 'absolute',
-                left: p.x - 4,
-                top: p.y - 4,
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: p.v >= 0 ? C.green : C.red,
-                borderWidth: 2,
-                borderColor: C.card,
-              }}
-            />
-          ))}
+        {/* Líneas horizontales de grid */}
+        {yTicks.map(v => (
+          <View
+            key={v}
+            style={{
+              position: 'absolute',
+              left: PAD.left,
+              top: toY(v) - (v === 0 ? 1 : 0.5),
+              width: chartW + PAD.right,
+              height: v === 0 ? 2 : 1,
+              backgroundColor: v === 0 ? C.gray : C.cardBorder,
+            }}
+          />
+        ))}
 
-          {xLabels.map((lbl, i) => (
-            <Text
-              key={i}
-              numberOfLines={1}
-              allowFontScaling={false}
-              style={{
-                position: 'absolute',
-                left: toX(i) - 22,
-                top: PAD.top + chartH + 8,
-                width: 44,
-                textAlign: 'center',
-                fontSize: 9,
-                color: C.gray,
-              }}
-            >
-              {lbl.length > 6 ? lbl.slice(0, 5) + '…' : lbl}
-            </Text>
-          ))}
-        </>
-      )}
+        {/* Segmentos de línea */}
+        {segments.map((seg, i) => (
+          <View
+            key={i}
+            style={{
+              position: 'absolute',
+              left: seg.midX - seg.length / 2,
+              top: seg.midY - 1.5,
+              width: seg.length,
+              height: 2.5,
+              backgroundColor: seg.color,
+              borderRadius: 2,
+              transform: [{ rotate: `${seg.angle}deg` }],
+            }}
+          />
+        ))}
+
+        {/* Puntos */}
+        {points.map((p, i) => (
+          <View
+            key={i}
+            style={{
+              position: 'absolute',
+              left: p.x - 4,
+              top: p.y - 4,
+              width: 8, height: 8,
+              borderRadius: 4,
+              backgroundColor: p.v >= 0 ? C.green : C.red,
+              borderWidth: 2,
+              borderColor: C.card,
+            }}
+          />
+        ))}
+
+        {/* Etiquetas eje X */}
+        {xLabels.map((lbl, i) => (
+          <Text
+            key={i}
+            numberOfLines={1}
+            allowFontScaling={false}
+            style={{
+              position: 'absolute',
+              left: toX(i) - 22,
+              top: PAD.top + chartH + 8,
+              width: 44,
+              textAlign: 'center',
+              fontSize: 9,
+              color: C.gray,
+            }}>
+            {lbl.length > 6 ? lbl.slice(0, 5) + '…' : lbl}
+          </Text>
+        ))}
+      </ScrollView>
     </View>
   );
 }
