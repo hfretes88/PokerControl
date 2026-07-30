@@ -10,6 +10,9 @@ import {
   getPendingDebtsByDebtor,
   registerPayment,
   markAsPaid,
+  reNetAllDebts,
+  undoReNet,
+  canUndoReNet,
   debtStatusLabel,
   debtStatusColor,
 } from '../storage/debts';
@@ -18,19 +21,20 @@ import { C, Card, Btn, formatMoney } from '../components/UI';
 function buildWhatsAppText(groups) {
   if (groups.length === 0) return '🤝 No hay deudas pendientes.';
 
-  let text = `💳 *Pagos pendientes:*\n`;
+  let text = `💳 RESUMEN DE PAGOS PENDIENTES\n`;
 
   groups.forEach(group => {
-    // Agrupar por acreedor
+    text += `\n${group.player.name} paga: $${group.totalPending.toLocaleString('es-AR')}\n`;
+
     const byCreditor = {};
     group.debts.forEach(d => {
-      const key = d.toPlayer.name;
-      if (!byCreditor[key]) byCreditor[key] = { name: key, total: 0 };
+      const key = d.toPlayer.id;
+      if (!byCreditor[key]) byCreditor[key] = { name: d.toPlayer.name, total: 0 };
       byCreditor[key].total += d.pendingAmount;
     });
 
     Object.values(byCreditor).forEach(creditor => {
-      text += `•  ${group.player.name} le paga ${formatMoney(creditor.total)} a ${creditor.name}\n`;
+      text += `•  A ${creditor.name}: $${creditor.total.toLocaleString('es-AR')}\n`;
     });
   });
 
@@ -224,9 +228,10 @@ function DebtCard({ debt, onPay }) {
 // ─── Screen principal ─────────────────────────────────────────
 export default function PendingDebtsScreen() {
   const insets = useSafeAreaInsets();
-  const [groups, setGroups]     = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [payModal, setPayModal] = useState(null);
+  const [groups, setGroups]         = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [payModal, setPayModal]     = useState(null);
+  const [undoState, setUndoState]   = useState({ canUndo: false, reason: null }); // estado del botón deshacer
 
   useFocusEffect(
     useCallback(() => { load(); }, [])
@@ -234,8 +239,12 @@ export default function PendingDebtsScreen() {
 
   async function load() {
     setLoading(true);
-    const data = await getPendingDebtsByDebtor();
+    const [data, undoStatus] = await Promise.all([
+      getPendingDebtsByDebtor(),
+      canUndoReNet(),
+    ]);
     setGroups(data);
+    setUndoState(undoStatus);
     setLoading(false);
   }
 
@@ -246,6 +255,45 @@ export default function PendingDebtsScreen() {
     } catch (err) {
       Alert.alert('Error', err.message);
     }
+  }
+
+  async function handleReNet() {
+    Alert.alert(
+      'Reorganizar deudas',
+      'Esto va a netear y consolidar todas las deudas pendientes entre los mismos jugadores. Podrás deshacer si no hay pagos registrados.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Reorganizar',
+          onPress: async () => {
+            await reNetAllDebts();
+            load();
+          }
+        }
+      ]
+    );
+  }
+
+  async function handleUndo() {
+    Alert.alert(
+      'Deshacer reorganización',
+      '¿Restaurar las deudas al estado anterior a la última reorganización?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Deshacer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await undoReNet();
+              load();
+            } catch (err) {
+              Alert.alert('No se puede deshacer', err.message);
+            }
+          }
+        }
+      ]
+    );
   }
 
   if (loading) {
@@ -272,11 +320,32 @@ export default function PendingDebtsScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
 
-        {/* Botón compartir */}
+        {/* Botones de acción */}
         <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.8}>
           <Text style={styles.shareBtnIcon}>📤</Text>
           <Text style={styles.shareBtnText}>Compartir por WhatsApp</Text>
         </TouchableOpacity>
+
+        {/* Botón reorganizar / deshacer */}
+        {undoState.canUndo ? (
+          // Hay backup y no hay pagos → mostrar "Deshacer"
+          <TouchableOpacity style={styles.undoBtn} onPress={handleUndo} activeOpacity={0.8}>
+            <Text style={styles.reNetBtnIcon}>↩</Text>
+            <Text style={styles.undoBtnText}>Deshacer reorganización</Text>
+          </TouchableOpacity>
+        ) : undoState.reason === 'has_payments' ? (
+          // Hay backup pero hay pagos → bloqueado
+          <View style={[styles.reNetBtn, styles.reNetBtnDisabled]}>
+            <Text style={styles.reNetBtnIcon}>🔒</Text>
+            <Text style={styles.reNetBtnTextDisabled}>Reorganizar (bloqueado por pagos)</Text>
+          </View>
+        ) : (
+          // Sin backup → botón reorganizar disponible
+          <TouchableOpacity style={styles.reNetBtn} onPress={handleReNet} activeOpacity={0.8}>
+            <Text style={styles.reNetBtnIcon}>⚡</Text>
+            <Text style={styles.reNetBtnText}>Reorganizar deudas</Text>
+          </TouchableOpacity>
+        )}
 
         {groups.map(group => (
           <View key={group.player.id} style={styles.group}>
@@ -327,15 +396,34 @@ const styles = StyleSheet.create({
   emptyText:     { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
   emptyMuted:    { fontSize: 13, color: C.gray, textAlign: 'center' },
 
-  // Botón compartir
+  // Botones de acción
   shareBtn:      {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#0d2a1a', borderRadius: 12,
     borderWidth: 1, borderColor: C.green + '44',
-    paddingVertical: 12, gap: 8, marginBottom: 20,
+    paddingVertical: 12, gap: 8, marginBottom: 10,
   },
   shareBtnIcon:  { fontSize: 18 },
   shareBtnText:  { fontSize: 14, fontWeight: '700', color: C.green },
+  reNetBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#1a1a0a', borderRadius: 12,
+    borderWidth: 1, borderColor: C.accent + '55',
+    paddingVertical: 12, gap: 8, marginBottom: 16,
+  },
+  reNetBtnDisabled: {
+    backgroundColor: C.card, borderColor: C.muted + '44', opacity: 0.5,
+  },
+  reNetBtnIcon:      { fontSize: 16 },
+  reNetBtnText:      { fontSize: 14, fontWeight: '700', color: C.accent },
+  reNetBtnTextDisabled: { fontSize: 13, fontWeight: '600', color: C.muted },
+  undoBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0a1a2a', borderRadius: 12,
+    borderWidth: 1, borderColor: '#4488cc55',
+    paddingVertical: 12, gap: 8, marginBottom: 16,
+  },
+  undoBtnText: { fontSize: 14, fontWeight: '700', color: '#4488cc' },
 
   // Grupo por deudor
   group:         { marginBottom: 20 },
