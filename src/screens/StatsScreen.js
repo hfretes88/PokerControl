@@ -112,14 +112,16 @@ export default function StatsScreen({ route }) {
                 style={[styles.adjTypeBtn, adjType === 'cobro' && styles.adjTypeBtnCobro]}
                 onPress={() => setAdjType('cobro')}>
                 <Text style={[styles.adjTypeTxt, adjType === 'cobro' && { color: C.green }]}>
-                  💰 Cobro
+                  <Text style={styles.adjTypeEmoji}>💰 </Text>
+                  Cobro
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.adjTypeBtn, adjType === 'deuda' && styles.adjTypeBtnDeuda]}
                 onPress={() => setAdjType('deuda')}>
                 <Text style={[styles.adjTypeTxt, adjType === 'deuda' && { color: C.red }]}>
-                  💸 Deuda
+                  <Text style={styles.adjTypeEmoji}>💸 </Text>
+                  Deuda
                 </Text>
               </TouchableOpacity>
             </View>
@@ -360,6 +362,7 @@ function createStyles(C) {
     adjTypeBtnCobro: { borderColor: C.green, backgroundColor: C.successSoftBg },
     adjTypeBtnDeuda: { borderColor: C.red, backgroundColor: C.dangerSoftBg },
     adjTypeTxt: { fontSize: 16, fontWeight: '700', color: C.gray },
+    adjTypeEmoji: { fontWeight: '400' },
   }),
   };
 }
