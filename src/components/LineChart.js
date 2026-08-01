@@ -1,11 +1,12 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { C } from './UI';
+import { useTheme } from '../theme/ThemeContext';
 
 const PAD      = { left: 44, right: 14, top: 16, bottom: 32 };
 const PT_WIDTH = 56; // ancho por punto en el eje X
 
 export default function LineChart({ data, xLabels, height = 220 }) {
+  const { C } = useTheme();
   const scrollRef = useRef(null);
 
   if (!data || data.length < 2 || !xLabels) return null;
@@ -89,7 +90,7 @@ export default function LineChart({ data, xLabels, height = 220 }) {
               <Text
                 allowFontScaling={false}
                 style={{
-                  fontSize: 10,
+                  fontSize: 11,
                   color: v === 0 ? C.white : C.gray,
                   fontWeight: v === 0 ? '700' : '400',
                 }}>
@@ -169,7 +170,7 @@ export default function LineChart({ data, xLabels, height = 220 }) {
               top: PAD.top + chartH + 8,
               width: 44,
               textAlign: 'center',
-              fontSize: 9,
+              fontSize: 10,
               color: C.gray,
             }}>
             {lbl.length > 6 ? lbl.slice(0, 5) + '…' : lbl}

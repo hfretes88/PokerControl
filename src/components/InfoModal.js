@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
   ScrollView, Share, Alert, ActivityIndicator, Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { C, Btn } from './UI';
+import { Btn } from './UI';
+import { useTheme } from '../theme/ThemeContext';
 import RNFS from 'react-native-fs';
 
 const APP_VERSION = '1.0.0';
@@ -31,6 +32,8 @@ async function exportAllData() {
 
 export default function InfoModal({ visible, onClose, title, children }) {
   const insets = useSafeAreaInsets();
+  const { C, isDark, toggleTheme } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [exporting, setExporting] = useState(false);
 
   async function handleExport() {
@@ -124,6 +127,27 @@ export default function InfoModal({ visible, onClose, title, children }) {
               </TouchableOpacity>
             </View>
 
+            {/* Sección tema */}
+            <View style={styles.exportBlock}>
+              <Text style={styles.exportTitle}>Apariencia</Text>
+
+              <TouchableOpacity
+                style={styles.exportBtn}
+                onPress={toggleTheme}
+                activeOpacity={0.8}>
+                <Text style={styles.exportBtnIcon}>{isDark ? '🌙' : '☀️'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.exportBtnLabel}>
+                    Tema {isDark ? 'oscuro' : 'claro'}
+                  </Text>
+                  <Text style={styles.exportBtnSub}>
+                    Tocá para cambiar a modo {isDark ? 'claro' : 'oscuro'}
+                  </Text>
+                </View>
+                <Text style={styles.exportArrow}>›</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Version */}
             <Text style={styles.version}>Poker Control v{APP_VERSION}</Text>
           </ScrollView>
@@ -133,10 +157,11 @@ export default function InfoModal({ visible, onClose, title, children }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(C) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: C.overlay,
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -155,12 +180,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 20,
   },
-  title: { fontSize: 20, fontWeight: '800', color: C.accent },
+  title: { fontSize: 22, fontWeight: '800', color: C.accent },
   closeBtn: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center',
   },
-  closeText: { fontSize: 14, color: C.gray, fontWeight: '700' },
+  closeText: { fontSize: 16, color: C.gray, fontWeight: '700' },
 
   contentBlock: { marginBottom: 4 },
 
@@ -171,12 +196,12 @@ const styles = StyleSheet.create({
 
   exportBlock: { marginBottom: 20 },
   exportTitle: {
-    fontSize: 11, fontWeight: '700', color: C.gray,
+    fontSize: 12, fontWeight: '700', color: C.gray,
     letterSpacing: 1, marginBottom: 10,
     textTransform: 'uppercase',
   },
   exportDesc: {
-    fontSize: 13, color: C.gray, lineHeight: 20, marginBottom: 16,
+    fontSize: 15, color: C.gray, lineHeight: 20, marginBottom: 16,
   },
   exportBtn: {
     flexDirection: 'row', alignItems: 'center',
@@ -185,13 +210,14 @@ const styles = StyleSheet.create({
     padding: 16, gap: 12,
   },
   exportBtnDisabled: { opacity: 0.6 },
-  exportBtnIcon:  { fontSize: 22 },
-  exportBtnLabel: { fontSize: 15, fontWeight: '700', color: C.white, marginBottom: 2 },
-  exportBtnSub:   { fontSize: 11, color: C.muted },
-  exportArrow:    { fontSize: 22, color: C.muted, fontWeight: '300' },
+  exportBtnIcon:  { fontSize: 25 },
+  exportBtnLabel: { fontSize: 17, fontWeight: '700', color: C.white, marginBottom: 2 },
+  exportBtnSub:   { fontSize: 12, color: C.muted },
+  exportArrow:    { fontSize: 25, color: C.muted, fontWeight: '300' },
 
   version: {
-    fontSize: 11, color: C.muted,
+    fontSize: 12, color: C.muted,
     textAlign: 'center', marginTop: 8,
   },
-});
+  });
+}

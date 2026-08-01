@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Modal, TextInput, Alert, KeyboardAvoidingView, Platform
@@ -11,11 +11,14 @@ import {
   getAllDebts, registerPayment, markAsPaid,
   debtStatusLabel, debtStatusColor,
 } from '../storage/debts';
-import { C, Card, Btn, formatMoney } from '../components/UI';
+import { Card, Btn, formatMoney } from '../components/UI';
+import { useTheme } from '../theme/ThemeContext';
 
 export default function DebtScreen({ route }) {
   const { session } = route.params;
   const insets      = useSafeAreaInsets();
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const debtsResult = calcDebts(session);
   const allHaveResult = session.participants.every(p => p.finalAmount !== null);
 
@@ -146,7 +149,7 @@ export default function DebtScreen({ route }) {
                     <Text style={styles.debtArrow}>→</Text>
                   </View>
                   <View style={styles.debtPerson}>
-                    <View style={[styles.avatarSmall, { backgroundColor: '#0d2a1a' }]}>
+                    <View style={[styles.avatarSmall, { backgroundColor: C.successSoftBg }]}>
                       <Text style={[styles.avatarSmallText, { color: C.green }]}>{d.to[0].toUpperCase()}</Text>
                     </View>
                     <Text style={styles.debtName}>{d.to}</Text>
@@ -265,72 +268,74 @@ export default function DebtScreen({ route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(C) {
+  return StyleSheet.create({
   container:    { flex: 1, backgroundColor: C.bg },
   warnBox:      {
-    backgroundColor: '#2a1f00', borderRadius: 10, padding: 12, marginBottom: 16,
-    borderWidth: 1, borderColor: '#4a3a00',
+    backgroundColor: C.warningSoftBg, borderRadius: 10, padding: 12, marginBottom: 16,
+    borderWidth: 1, borderColor: C.warningSoftBorder,
   },
-  warnText:     { fontSize: 13, color: C.accent, lineHeight: 18 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 10 },
+  warnText:     { fontSize: 15, color: C.accent, lineHeight: 18 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 10 },
   row:          { flexDirection: 'row', alignItems: 'center' },
   avatar:       {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+    backgroundColor: C.infoSoftBg, alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
-  avatarText:   { fontSize: 14, fontWeight: '700', color: C.accent },
-  playerName:   { flex: 1, fontSize: 15, fontWeight: '600', color: C.white },
-  balance:      { fontSize: 16, fontWeight: '700' },
+  avatarText:   { fontSize: 16, fontWeight: '700', color: C.accent },
+  playerName:   { flex: 1, fontSize: 17, fontWeight: '600', color: C.white },
+  balance:      { fontSize: 18, fontWeight: '700' },
 
   noDebts:      { alignItems: 'center', paddingVertical: 30 },
-  noDebtsIcon:  { fontSize: 40, marginBottom: 12 },
-  noDebtsText:  { fontSize: 14, color: C.gray, textAlign: 'center', lineHeight: 20 },
+  noDebtsIcon:  { fontSize: 45, marginBottom: 12 },
+  noDebtsText:  { fontSize: 16, color: C.gray, textAlign: 'center', lineHeight: 20 },
 
   debtCard:     { marginBottom: 10 },
   debtRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   debtPerson:   { flex: 1, alignItems: 'center' },
   avatarSmall:  {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#2a0d0d', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+    backgroundColor: C.dangerSoftBg, alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
-  avatarSmallText: { fontSize: 13, fontWeight: '700', color: C.red },
-  debtName:     { fontSize: 13, fontWeight: '700', color: C.white, marginBottom: 1 },
-  debtVerb:     { fontSize: 10, color: C.gray },
+  avatarSmallText: { fontSize: 15, fontWeight: '700', color: C.red },
+  debtName:     { fontSize: 15, fontWeight: '700', color: C.white, marginBottom: 1 },
+  debtVerb:     { fontSize: 11, color: C.gray },
   debtCenter:   { alignItems: 'center', paddingHorizontal: 8 },
-  debtAmount:   { fontSize: 16, fontWeight: '800', marginBottom: 2 },
-  debtArrow:    { fontSize: 14, color: C.muted },
+  debtAmount:   { fontSize: 18, fontWeight: '800', marginBottom: 2 },
+  debtArrow:    { fontSize: 16, color: C.muted },
 
   debtStatus:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   statusBadge:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
-  statusText:   { fontSize: 11, fontWeight: '700' },
-  pendingLabel: { fontSize: 12, color: C.gray },
+  statusText:   { fontSize: 12, fontWeight: '700' },
+  pendingLabel: { fontSize: 13, color: C.gray },
 
   progressBar:  { height: 4, backgroundColor: C.cardBorder, borderRadius: 2, marginBottom: 10, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2 },
 
   paymentsBlock: { marginBottom: 10 },
   paymentRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 },
-  paymentCheck: { fontSize: 11, color: C.green },
-  paymentAmt:   { fontSize: 12, fontWeight: '700', color: C.green },
-  paymentNote:  { flex: 1, fontSize: 11, color: C.gray },
-  paymentDate:  { fontSize: 10, color: C.muted },
+  paymentCheck: { fontSize: 12, color: C.green },
+  paymentAmt:   { fontSize: 13, fontWeight: '700', color: C.green },
+  paymentNote:  { flex: 1, fontSize: 12, color: C.gray },
+  paymentDate:  { fontSize: 11, color: C.muted },
 
   payBtn:       {
     paddingVertical: 8, borderRadius: 8,
     borderWidth: 1, borderColor: C.accent, borderStyle: 'dashed',
     alignItems: 'center',
   },
-  payBtnText:   { fontSize: 13, color: C.accent, fontWeight: '700' },
-  noStoredNote: { fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 4 },
+  payBtnText:   { fontSize: 15, color: C.accent, fontWeight: '700' },
+  noStoredNote: { fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 4 },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: C.overlay, justifyContent: 'flex-end' },
   modalBox:     { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle:   { fontSize: 16, fontWeight: '800', color: C.white, marginBottom: 4 },
-  modalSub:     { fontSize: 13, color: C.gray, marginBottom: 20 },
-  fieldLabel:   { fontSize: 10, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 8 },
+  modalTitle:   { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 4 },
+  modalSub:     { fontSize: 15, color: C.gray, marginBottom: 20 },
+  fieldLabel:   { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 8 },
   input:        {
     backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder,
-    padding: 13, color: C.white, fontSize: 16, fontWeight: '600', marginBottom: 12,
+    padding: 13, color: C.white, fontSize: 18, fontWeight: '600', marginBottom: 12,
   },
   modalBtns:    { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-});
+  });
+}

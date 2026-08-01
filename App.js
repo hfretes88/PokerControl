@@ -1,8 +1,8 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'react-native';
-import { C } from './src/components/UI';
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
 import HomeScreen from './src/screens/HomeScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
@@ -16,8 +16,30 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <StatusBar barStyle="light-content" backgroundColor={C.card} />
+    <ThemeProvider>
+      <AppNavigator />
+    </ThemeProvider>
+  );
+}
+
+function AppNavigator() {
+  const { C, isDark } = useTheme();
+  const navigationTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+      background: C.bg,
+      card: C.card,
+      text: C.white,
+      border: C.cardBorder,
+      primary: C.accent,
+      notification: C.red,
+    },
+  };
+
+  return (
+    <NavigationContainer theme={navigationTheme}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.card} />
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: C.card },

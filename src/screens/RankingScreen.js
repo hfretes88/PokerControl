@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity
 } from 'react-native';
@@ -6,14 +6,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getGlobalRanking } from '../storage/storage';
-import { C, Card, formatMoney } from '../components/UI';
-import { GS } from '../components/GlobalStyles';
+import { Card, formatMoney } from '../components/UI';
+import { createGlobalStyles } from '../components/GlobalStyles';
+import { useTheme } from '../theme/ThemeContext';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const PODIUM_COLORS = ['#4da6ff', '#b0b8c0', '#cd7f32'];
 
 export default function RankingScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -144,10 +147,11 @@ export default function RankingScreen({ navigation }) {
   );
 }
 
-const styles = {
-  ...GS,
+function createStyles(C) {
+  return {
+  ...createGlobalStyles(C),
   ...StyleSheet.create({
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 12, marginTop: 4 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 12, marginTop: 4 },
 
     // Podio
     podiumWrapper: { marginBottom: 24 },
@@ -158,32 +162,33 @@ const styles = {
       borderWidth: 1, borderColor: C.cardBorder,
       paddingVertical: 16, paddingHorizontal: 6,
     },
-    podiumFirst: { paddingVertical: 22, borderColor: '#4da6ff', borderWidth: 1.5 },
-    podiumMedal: { fontSize: 22, marginBottom: 8 },
+    podiumFirst: { paddingVertical: 22, borderColor: C.accent, borderWidth: 1.5 },
+    podiumMedal: { fontSize: 25, marginBottom: 8 },
     podiumAvatar: {
       width: 44, height: 44, borderRadius: 22, borderWidth: 2,
-      backgroundColor: '#0e1e35', alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+      backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
     },
-    podiumAvatarText: { fontSize: 18, fontWeight: '800' },
-    podiumName: { fontSize: 13, fontWeight: '700', color: C.white, marginBottom: 4, textAlign: 'center' },
-    podiumBalance: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
-    podiumGames: { fontSize: 11, color: C.gray },
+    podiumAvatarText: { fontSize: 20, fontWeight: '800' },
+    podiumName: { fontSize: 15, fontWeight: '700', color: C.white, marginBottom: 4, textAlign: 'center' },
+    podiumBalance: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
+    podiumGames: { fontSize: 12, color: C.gray },
 
     // Lista
     rowCard: { marginBottom: 8 },
     rowInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     positionCol: { width: 30, alignItems: 'center' },
-    medal: { fontSize: 18 },
-    position: { fontSize: 14, fontWeight: '700', color: C.gray },
+    medal: { fontSize: 20 },
+    position: { fontSize: 16, fontWeight: '700', color: C.gray },
     avatar: {
       width: 36, height: 36, borderRadius: 18, borderWidth: 1.5,
-      backgroundColor: '#0e1e35', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.card, alignItems: 'center', justifyContent: 'center',
     },
-    avatarText: { fontSize: 15, fontWeight: '800' },
-    playerName: { fontSize: 15, fontWeight: '700', color: C.white, marginBottom: 3 },
+    avatarText: { fontSize: 17, fontWeight: '800' },
+    playerName: { fontSize: 17, fontWeight: '700', color: C.white, marginBottom: 3 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    metaText: { fontSize: 11, color: C.gray },
-    metaDot: { fontSize: 11, color: C.muted },
-    balance: { fontSize: 15, fontWeight: '800' },
+    metaText: { fontSize: 12, color: C.gray },
+    metaDot: { fontSize: 12, color: C.muted },
+    balance: { fontSize: 17, fontWeight: '800' },
   }),
-};
+  };
+}

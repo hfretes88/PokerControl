@@ -5,14 +5,15 @@
  * "Le deben"   → agrupa por deudor (fromPlayer)
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getDebtsForPlayer, markAsPaid,
   debtStatusColor,
 } from '../storage/debts';
-import { C, formatMoney } from './UI';
+import { formatMoney } from './UI';
+import { useTheme } from '../theme/ThemeContext';
 
 // ─── Agrupar deudas por jugador ───────────────────────────────
 function groupByPlayer(debts, playerKey) {
@@ -38,6 +39,8 @@ function groupByPlayer(debts, playerKey) {
 }
 
 export default function PlayerDebtsSection({ playerId }) {
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [owes, setOwes] = useState([]);  // lo que debe
   const [owed, setOwed] = useState([]);  // lo que le deben
 
@@ -144,7 +147,7 @@ export default function PlayerDebtsSection({ playerId }) {
 
           {owedGroups.map(group => (
             <View key={group.player.id} style={styles.debtRow}>
-              <View style={[styles.debtAvatar, { backgroundColor: '#0d2a1a' }]}>
+              <View style={[styles.debtAvatar, { backgroundColor: C.successSoftBg }]}>
                 <Text style={[styles.debtAvatarText, { color: C.green }]}>
                   {group.player.name[0].toUpperCase()}
                 </Text>
@@ -175,17 +178,18 @@ export default function PlayerDebtsSection({ playerId }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(C) {
+  return StyleSheet.create({
   clean:         { paddingVertical: 12, alignItems: 'center' },
-  cleanText:     { fontSize: 13, color: C.gray },
+  cleanText:     { fontSize: 15, color: C.gray },
 
   section:       { marginBottom: 16 },
   sectionHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 10,
   },
-  sectionTitle:  { fontSize: 12, fontWeight: '700', color: C.gray, letterSpacing: 0.5 },
-  sectionTotal:  { fontSize: 16, fontWeight: '800' },
+  sectionTitle:  { fontSize: 13, fontWeight: '700', color: C.gray, letterSpacing: 0.5 },
+  sectionTotal:  { fontSize: 18, fontWeight: '800' },
 
   debtRow:       {
     flexDirection: 'row', alignItems: 'center',
@@ -194,17 +198,17 @@ const styles = StyleSheet.create({
   },
   debtAvatar:    {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#2a0d0d',
+    backgroundColor: C.dangerSoftBg,
     alignItems: 'center', justifyContent: 'center',
   },
-  debtAvatarText: { fontSize: 15, fontWeight: '700', color: C.red },
+  debtAvatarText: { fontSize: 17, fontWeight: '700', color: C.red },
 
   debtNameRow:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
-  debtArrow:     { fontSize: 13, color: C.red, fontWeight: '700' },
-  debtPlayerName:{ fontSize: 14, fontWeight: '700', color: C.white },
-  debtMeta:      { fontSize: 11, color: C.muted },
+  debtArrow:     { fontSize: 15, color: C.red, fontWeight: '700' },
+  debtPlayerName:{ fontSize: 16, fontWeight: '700', color: C.white },
+  debtMeta:      { fontSize: 12, color: C.muted },
 
-  debtAmount:    { fontSize: 15, fontWeight: '800' },
+  debtAmount:    { fontSize: 17, fontWeight: '800' },
 
   paidBtn:       {
     width: 32, height: 32, borderRadius: 16,
@@ -212,5 +216,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: C.green + '55',
     alignItems: 'center', justifyContent: 'center',
   },
-  paidBtnText:   { fontSize: 15, color: C.green, fontWeight: '700' },
-});
+  paidBtnText:   { fontSize: 17, color: C.green, fontWeight: '700' },
+  });
+}

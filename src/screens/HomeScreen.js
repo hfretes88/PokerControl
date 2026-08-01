@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, Alert, Modal, ScrollView, KeyboardAvoidingView,
@@ -7,9 +7,10 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessions, createSessionWithBuys, deleteSession, getPlayers } from '../storage/storage';
-import { C, Card, Btn, formatMoney } from '../components/UI';
+import { Card, Btn, formatMoney } from '../components/UI';
 import InfoModal from '../components/InfoModal';
-import { GS } from '../components/GlobalStyles';
+import { createGlobalStyles } from '../components/GlobalStyles';
+import { useTheme } from '../theme/ThemeContext';
 
 function defaultSessionName() {
   const d = new Date();
@@ -21,6 +22,8 @@ function defaultSessionName() {
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { C, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [sessions, setSessions] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
@@ -108,7 +111,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.card} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.card} />
 
       {/* Header custom que respeta status bar */}
       <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
@@ -171,7 +174,7 @@ export default function HomeScreen({ navigation }) {
                     <View style={[styles.statusBadge,
                       item.status === 'closed' ? styles.closedBadge : styles.activeBadge]}>
                       <Text style={[styles.statusText,
-                        { color: item.status === 'closed' ? '#a0a000' : C.green }]}>
+                        { color: item.status === 'closed' ? C.warning : C.green }]}>
                         {item.status === 'closed' ? 'Cerrada' : '● Activa'}
                       </Text>
                     </View>
@@ -299,8 +302,9 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-const styles = {
-  ...GS,
+function createStyles(C) {
+  return {
+  ...createGlobalStyles(C),
   ...StyleSheet.create({
     // Header
     header: {
@@ -310,24 +314,24 @@ const styles = {
       borderBottomWidth: 1, borderBottomColor: C.cardBorder,
     },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerIcon: { fontSize: 22, color: C.accent, fontWeight: '900' },
+    headerIcon: { fontSize: 20, color: C.accent, fontWeight: '900' },
     title: { fontSize: 20, fontWeight: '800', color: C.accent },
     headerBtns: { flexDirection: 'row', alignItems: 'center' },
     playersBtn: {
       backgroundColor: C.bg, paddingHorizontal: 14, paddingVertical: 8,
       borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,
     },
-    playersBtnText: { fontSize: 13, color: C.white, fontWeight: '600' },
+    playersBtnText: { fontSize: 15, color: C.white, fontWeight: '600' },
 
     // Lista
     rightCol: { alignItems: 'flex-end', marginRight: 10 },
-    sessionName: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 3 },
-    sessionMeta: { fontSize: 12, color: C.gray },
-    pot: { fontSize: 15, fontWeight: '700', color: C.accent, marginBottom: 4 },
+    sessionName: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 3 },
+    sessionMeta: { fontSize: 13, color: C.gray },
+    pot: { fontSize: 17, fontWeight: '700', color: C.accent, marginBottom: 4 },
     statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-    activeBadge: { backgroundColor: '#0a1e40' },
-    closedBadge: { backgroundColor: '#1a2540' },
-    statusText: { fontSize: 11, fontWeight: '700' },
+    activeBadge: { backgroundColor: C.infoSoftBg },
+    closedBadge: { backgroundColor: C.neutralSoftBg },
+    statusText: { fontSize: 12, fontWeight: '700' },
 
     // Empty state (override padding para pantalla con lista)
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
@@ -336,21 +340,21 @@ const styles = {
       borderRadius: 10, borderWidth: 2, borderColor: C.cardBorder,
       alignItems: 'center', justifyContent: 'center', marginBottom: 20,
     },
-    emptyCardText: { fontSize: 28, fontWeight: '900', color: C.accent, lineHeight: 32 },
-    emptyCardSuit: { fontSize: 18, color: C.accent },
+    emptyCardText: { fontSize: 31, fontWeight: '900', color: C.accent, lineHeight: 32 },
+    emptyCardSuit: { fontSize: 20, color: C.accent },
 
     // Modal (modalBox override para maxHeight)
     modalBox: {
       backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
       padding: 24, maxHeight: '90%',
     },
-    modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 20 },
+    modalTitle: { fontSize: 20, fontWeight: '800', color: C.white, marginBottom: 20 },
     fieldCount: { color: C.accent },
     playersHeader: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
     },
-    toggleAllText: { fontSize: 12, color: C.accent, fontWeight: '700' },
-    noPlayersText: { fontSize: 13, color: C.muted, marginBottom: 16 },
+    toggleAllText: { fontSize: 13, color: C.accent, fontWeight: '700' },
+    noPlayersText: { fontSize: 15, color: C.muted, marginBottom: 16 },
     playersList: { maxHeight: 200, marginBottom: 12 },
     playerRow: {
       flexDirection: 'row', alignItems: 'center',
@@ -361,20 +365,21 @@ const styles = {
       alignItems: 'center', justifyContent: 'center', marginRight: 10,
     },
     checkboxSelected: { backgroundColor: C.accent, borderColor: C.accent },
-    checkmark: { fontSize: 13, color: '#080e1a', fontWeight: '900' },
+    checkmark: { fontSize: 15, color: C.bg, fontWeight: '900' },
     playerAvatar: {
       width: 30, height: 30, borderRadius: 15,
-      backgroundColor: '#0d2240', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+      backgroundColor: C.neutralSoftBg, alignItems: 'center', justifyContent: 'center', marginRight: 10,
     },
-    playerAvatarText: { fontSize: 13, fontWeight: '700', color: C.accent },
-    playerRowName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.white },
+    playerAvatarText: { fontSize: 15, fontWeight: '700', color: C.accent },
+    playerRowName: { flex: 1, fontSize: 17, fontWeight: '600', color: C.white },
     playerRowMuted: { color: C.muted },
     previewBox: {
-      backgroundColor: '#0a1e40', borderRadius: 10, padding: 12,
+      backgroundColor: C.infoSoftBg, borderRadius: 10, padding: 12,
       marginBottom: 16, alignItems: 'center',
-      borderWidth: 1, borderColor: '#1a3a5a',
+      borderWidth: 1, borderColor: C.infoSoftBorder,
     },
-    previewText: { fontSize: 13, color: C.green, fontWeight: '700' },
-    aboutText: { fontSize: 14, color: C.gray, lineHeight: 22, marginBottom: 10 },
+    previewText: { fontSize: 15, color: C.green, fontWeight: '700' },
+    aboutText: { fontSize: 16, color: C.gray, lineHeight: 22, marginBottom: 10 },
   }),
-};
+  };
+}

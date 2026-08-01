@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Modal, TextInput, Alert, KeyboardAvoidingView, Platform, Share
@@ -16,7 +16,8 @@ import {
   debtStatusLabel,
   debtStatusColor,
 } from '../storage/debts';
-import { C, Card, Btn, formatMoney } from '../components/UI';
+import { Card, Btn, formatMoney } from '../components/UI';
+import { useTheme } from '../theme/ThemeContext';
 
 function buildWhatsAppText(groups) {
   if (groups.length === 0) return '🤝 No hay deudas pendientes.';
@@ -44,6 +45,8 @@ function buildWhatsAppText(groups) {
 // ─── Modal de pago ────────────────────────────────────────────
 function PaymentModal({ debt, visible, onClose, onPaid }) {
   const insets = useSafeAreaInsets();
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [amount, setAmount]   = useState('');
   const [note, setNote]       = useState('');
   const [loading, setLoading] = useState(false);
@@ -164,6 +167,8 @@ function PaymentModal({ debt, visible, onClose, onPaid }) {
 
 // ─── Card de deuda individual ─────────────────────────────────
 function DebtCard({ debt, onPay }) {
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const paidPct = Math.round(
     ((debt.originalAmount - debt.pendingAmount) / debt.originalAmount) * 100
   );
@@ -228,6 +233,8 @@ function DebtCard({ debt, onPay }) {
 // ─── Screen principal ─────────────────────────────────────────
 export default function PendingDebtsScreen() {
   const insets = useSafeAreaInsets();
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [groups, setGroups]         = useState([]);
   const [loading, setLoading]       = useState(true);
   const [payModal, setPayModal]     = useState(null);
@@ -388,56 +395,57 @@ export default function PendingDebtsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(C) {
+  return StyleSheet.create({
   container:     { flex: 1, backgroundColor: C.bg },
-  loadingText:   { color: C.gray, textAlign: 'center', marginTop: 40, fontSize: 16 },
+  loadingText:   { color: C.gray, textAlign: 'center', marginTop: 40, fontSize: 18 },
   empty:         { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  emptyIcon:     { fontSize: 50, marginBottom: 16 },
-  emptyText:     { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 6 },
-  emptyMuted:    { fontSize: 13, color: C.gray, textAlign: 'center' },
+  emptyIcon:     { fontSize: 56, marginBottom: 16 },
+  emptyText:     { fontSize: 20, fontWeight: '700', color: C.white, marginBottom: 6 },
+  emptyMuted:    { fontSize: 15, color: C.gray, textAlign: 'center' },
 
   // Botones de acción
   shareBtn:      {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0d2a1a', borderRadius: 12,
+    backgroundColor: C.successSoftBg, borderRadius: 12,
     borderWidth: 1, borderColor: C.green + '44',
     paddingVertical: 12, gap: 8, marginBottom: 10,
   },
-  shareBtnIcon:  { fontSize: 18 },
-  shareBtnText:  { fontSize: 14, fontWeight: '700', color: C.green },
+  shareBtnIcon:  { fontSize: 20 },
+  shareBtnText:  { fontSize: 16, fontWeight: '700', color: C.green },
   reNetBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#1a1a0a', borderRadius: 12,
+    backgroundColor: C.neutralSoftBg, borderRadius: 12,
     borderWidth: 1, borderColor: C.accent + '55',
     paddingVertical: 12, gap: 8, marginBottom: 16,
   },
   reNetBtnDisabled: {
     backgroundColor: C.card, borderColor: C.muted + '44', opacity: 0.5,
   },
-  reNetBtnIcon:      { fontSize: 16 },
-  reNetBtnText:      { fontSize: 14, fontWeight: '700', color: C.accent },
-  reNetBtnTextDisabled: { fontSize: 13, fontWeight: '600', color: C.muted },
+  reNetBtnIcon:      { fontSize: 18 },
+  reNetBtnText:      { fontSize: 16, fontWeight: '700', color: C.accent },
+  reNetBtnTextDisabled: { fontSize: 15, fontWeight: '600', color: C.muted },
   undoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0a1a2a', borderRadius: 12,
-    borderWidth: 1, borderColor: '#4488cc55',
+    backgroundColor: C.infoSoftBg, borderRadius: 12,
+    borderWidth: 1, borderColor: C.infoSoftBorder,
     paddingVertical: 12, gap: 8, marginBottom: 16,
   },
-  undoBtnText: { fontSize: 14, fontWeight: '700', color: '#4488cc' },
+  undoBtnText: { fontSize: 16, fontWeight: '700', color: C.accent },
 
   // Grupo por deudor
   group:         { marginBottom: 20 },
   groupHeader:   { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 12 },
   groupAvatar:   {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#1a3a4a', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.infoSoftBg, alignItems: 'center', justifyContent: 'center',
   },
-  groupAvatarText: { fontSize: 18, fontWeight: '700', color: C.accent },
-  groupName:     { fontSize: 16, fontWeight: '800', color: C.white },
-  groupSub:      { fontSize: 12, color: C.gray, marginTop: 2 },
+  groupAvatarText: { fontSize: 20, fontWeight: '700', color: C.accent },
+  groupName:     { fontSize: 18, fontWeight: '800', color: C.white },
+  groupSub:      { fontSize: 13, color: C.gray, marginTop: 2 },
   groupTotalBox: { alignItems: 'flex-end' },
-  groupTotalLabel: { fontSize: 10, color: C.gray, marginBottom: 2 },
-  groupTotal:    { fontSize: 18, fontWeight: '800', color: C.red },
+  groupTotalLabel: { fontSize: 11, color: C.gray, marginBottom: 2 },
+  groupTotal:    { fontSize: 20, fontWeight: '800', color: C.red },
 
   // Card de deuda
   debtCard:      {
@@ -446,43 +454,44 @@ const styles = StyleSheet.create({
     padding: 14, marginBottom: 8, marginLeft: 16,
   },
   debtCardHeader:  { flexDirection: 'row', marginBottom: 10 },
-  debtCardSession: { fontSize: 14, fontWeight: '700', color: C.white, marginBottom: 3 },
-  debtCardDate:    { fontSize: 11, color: C.gray },
+  debtCardSession: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 3 },
+  debtCardDate:    { fontSize: 12, color: C.gray },
   statusBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, marginBottom: 4 },
-  statusText:    { fontSize: 11, fontWeight: '700' },
-  debtPending:   { fontSize: 16, fontWeight: '800' },
+  statusText:    { fontSize: 12, fontWeight: '700' },
+  debtPending:   { fontSize: 18, fontWeight: '800' },
   progressBar:   { height: 4, backgroundColor: C.cardBorder, borderRadius: 2, marginBottom: 10, overflow: 'hidden' },
   progressFill:  { height: '100%', borderRadius: 2 },
   paymentsHistory: { marginBottom: 10 },
   paymentRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },
-  paymentIcon:   { fontSize: 12, color: C.green },
-  paymentAmount: { fontSize: 13, fontWeight: '700', color: C.green },
-  paymentNote:   { flex: 1, fontSize: 12, color: C.gray },
-  paymentDate:   { fontSize: 11, color: C.muted },
+  paymentIcon:   { fontSize: 13, color: C.green },
+  paymentAmount: { fontSize: 15, fontWeight: '700', color: C.green },
+  paymentNote:   { flex: 1, fontSize: 13, color: C.gray },
+  paymentDate:   { fontSize: 12, color: C.muted },
   payBtn:        {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 8, borderRadius: 8,
     borderWidth: 1, borderColor: C.accent, borderStyle: 'dashed',
   },
-  payBtnText:    { fontSize: 13, color: C.accent, fontWeight: '700' },
+  payBtnText:    { fontSize: 15, color: C.accent, fontWeight: '700' },
 
   // Modal
-  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  modalOverlay:  { flex: 1, backgroundColor: C.overlay, justifyContent: 'flex-end' },
   modalBox:      { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle:    { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 16 },
+  modalTitle:    { fontSize: 20, fontWeight: '800', color: C.white, marginBottom: 16 },
   debtSummary:   { backgroundColor: C.bg, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: C.cardBorder },
   debtPlayers:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 },
-  playerChip:    { backgroundColor: '#2a0d0d', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.red + '44' },
-  playerChipGreen: { backgroundColor: '#0d2a1a', borderColor: C.green + '44' },
-  playerChipText:  { fontSize: 14, fontWeight: '700', color: C.red },
-  debtArrow:     { fontSize: 18, color: C.muted },
-  debtSession:   { fontSize: 12, color: C.gray, textAlign: 'center', marginBottom: 12 },
+  playerChip:    { backgroundColor: C.dangerSoftBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.red + '44' },
+  playerChipGreen: { backgroundColor: C.successSoftBg, borderColor: C.green + '44' },
+  playerChipText:  { fontSize: 16, fontWeight: '700', color: C.red },
+  debtArrow:     { fontSize: 20, color: C.muted },
+  debtSession:   { fontSize: 13, color: C.gray, textAlign: 'center', marginBottom: 12 },
   debtAmounts:   { flexDirection: 'row', alignItems: 'center' },
   debtAmountCol: { flex: 1, alignItems: 'center' },
-  debtAmountLabel: { fontSize: 10, color: C.gray, marginBottom: 4 },
-  debtAmountVal: { fontSize: 16, fontWeight: '800', color: C.white },
+  debtAmountLabel: { fontSize: 11, color: C.gray, marginBottom: 4 },
+  debtAmountVal: { fontSize: 18, fontWeight: '800', color: C.white },
   debtAmountDivider: { width: 1, height: 30, backgroundColor: C.cardBorder },
-  fieldLabel:    { fontSize: 10, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 8 },
-  input:         { backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder, padding: 13, color: C.white, fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  fieldLabel:    { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 8 },
+  input:         { backgroundColor: C.bg, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder, padding: 13, color: C.white, fontSize: 18, fontWeight: '600', marginBottom: 12 },
   modalBtns:     { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-});
+  });
+}

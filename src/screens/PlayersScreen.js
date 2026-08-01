@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, TextInput, Alert, Modal
@@ -7,11 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPlayers, savePlayer, deletePlayer } from '../storage/storage';
-import { C, Card, Btn } from '../components/UI';
-import { GS } from '../components/GlobalStyles';
+import { Card, Btn } from '../components/UI';
+import { createGlobalStyles } from '../components/GlobalStyles';
+import { useTheme } from '../theme/ThemeContext';
 
 export default function PlayersScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [players, setPlayers] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
@@ -122,13 +125,15 @@ export default function PlayersScreen({ navigation }) {
   );
 }
 
-const styles = {
-  ...GS,
-  ...StyleSheet.create({
-    statsBtn: {
-      backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder,
-      paddingHorizontal: 10, paddingVertical: 5, marginRight: 8,
-    },
-    statsBtnText: { fontSize: 12, color: C.accent, fontWeight: '600' },
-  }),
-};
+function createStyles(C) {
+  return {
+    ...createGlobalStyles(C),
+    ...StyleSheet.create({
+      statsBtn: {
+        backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder,
+        paddingHorizontal: 10, paddingVertical: 5, marginRight: 8,
+      },
+      statsBtnText: { fontSize: 13, color: C.accent, fontWeight: '600' },
+    }),
+  };
+}

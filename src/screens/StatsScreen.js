@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Modal, TextInput, Alert, KeyboardAvoidingView, Platform
@@ -7,14 +7,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPlayerStats, addPlayerAdjustment, deletePlayerAdjustment } from '../storage/storage';
-import { C, Card, Btn, Divider, formatMoney } from '../components/UI';
-import { GS } from '../components/GlobalStyles';
+import { Card, Btn, Divider, formatMoney } from '../components/UI';
+import { createGlobalStyles } from '../components/GlobalStyles';
+import { useTheme } from '../theme/ThemeContext';
 import LineChart from '../components/LineChart';
 import PlayerDebtsSection from '../components/PlayerDebtsSection';
 
 export default function StatsScreen({ route }) {
   const { playerId, playerName } = route.params;
   const insets = useSafeAreaInsets();
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [adjModal, setAdjModal] = useState(false);
@@ -315,46 +318,48 @@ export default function StatsScreen({ route }) {
   );
 }
 
-const styles = {
-  ...GS,
+function createStyles(C) {
+  return {
+  ...createGlobalStyles(C),
   ...StyleSheet.create({
     heroCard: { alignItems: 'center', marginBottom: 12 },
-    heroLabel: { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 6 },
-    heroAmount: { fontSize: 42, fontWeight: '800', marginBottom: 8 },
-    adjBreakdown: { fontSize: 11, color: C.gray, marginBottom: 14 },
+    heroLabel: { fontSize: 12, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 6 },
+    heroAmount: { fontSize: 47, fontWeight: '800', marginBottom: 8 },
+    adjBreakdown: { fontSize: 12, color: C.gray, marginBottom: 14 },
     statsRow: { flexDirection: 'row', alignItems: 'center' },
     statItem: { alignItems: 'center', flex: 1 },
-    statNum: { fontSize: 20, fontWeight: '800', color: C.white },
-    statLabel: { fontSize: 11, color: C.gray, marginTop: 2 },
+    statNum: { fontSize: 22, fontWeight: '800', color: C.white },
+    statLabel: { fontSize: 12, color: C.gray, marginTop: 2 },
     statDivider: { width: 1, height: 30, backgroundColor: C.cardBorder },
     row: { flexDirection: 'row', marginBottom: 4 },
     halfCard: { flex: 1, marginBottom: 12 },
-    halfLabel: { fontSize: 12, color: C.gray, marginBottom: 6 },
-    halfAmount: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
-    halfSession: { fontSize: 11, color: C.muted },
+    halfLabel: { fontSize: 13, color: C.gray, marginBottom: 6 },
+    halfAmount: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
+    halfSession: { fontSize: 12, color: C.muted },
     chartCard: { marginBottom: 12 },
-    chartTitle: { fontSize: 14, fontWeight: '700', color: C.white, marginBottom: 2 },
-    chartSubtitle: { fontSize: 11, color: C.gray, marginBottom: 4 },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 10, marginTop: 4 },
+    chartTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 2 },
+    chartSubtitle: { fontSize: 12, color: C.gray, marginBottom: 4 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 10, marginTop: 4 },
     histRow: { flexDirection: 'row', alignItems: 'center' },
-    histSession: { fontSize: 14, fontWeight: '600', color: C.white, marginBottom: 3 },
-    histDate: { fontSize: 12, color: C.gray },
-    histBalance: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
-    histDetail: { fontSize: 11, color: C.muted },
+    histSession: { fontSize: 16, fontWeight: '600', color: C.white, marginBottom: 3 },
+    histDate: { fontSize: 13, color: C.gray },
+    histBalance: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
+    histDetail: { fontSize: 12, color: C.muted },
 
     // Ajustes
     adjSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 10 },
     adjAddBtn: { backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder, paddingHorizontal: 12, paddingVertical: 5 },
     adjAddBtnEmpty: { marginTop: 20, borderWidth: 1, borderColor: C.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
-    adjAddText: { fontSize: 13, color: C.accent, fontWeight: '700' },
-    adjEmpty: { fontSize: 13, color: C.muted, marginBottom: 12 },
+    adjAddText: { fontSize: 15, color: C.accent, fontWeight: '700' },
+    adjEmpty: { fontSize: 15, color: C.muted, marginBottom: 12 },
     adjRow: { flexDirection: 'row', alignItems: 'center' },
-    adjDesc: { fontSize: 14, fontWeight: '600', color: C.white, marginBottom: 3 },
-    adjAmount: { fontSize: 16, fontWeight: '700', marginRight: 4 },
+    adjDesc: { fontSize: 16, fontWeight: '600', color: C.white, marginBottom: 3 },
+    adjAmount: { fontSize: 18, fontWeight: '700', marginRight: 4 },
     adjTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     adjTypeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder, alignItems: 'center' },
-    adjTypeBtnCobro: { borderColor: C.green, backgroundColor: '#0a2a18' },
-    adjTypeBtnDeuda: { borderColor: C.red, backgroundColor: '#2a0e0e' },
-    adjTypeTxt: { fontSize: 14, fontWeight: '700', color: C.gray },
+    adjTypeBtnCobro: { borderColor: C.green, backgroundColor: C.successSoftBg },
+    adjTypeBtnDeuda: { borderColor: C.red, backgroundColor: C.dangerSoftBg },
+    adjTypeTxt: { fontSize: 16, fontWeight: '700', color: C.gray },
   }),
-};
+  };
+}

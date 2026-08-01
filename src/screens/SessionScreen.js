@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   TextInput, Alert, Modal, ScrollView, Linking, KeyboardAvoidingView, Platform
@@ -11,12 +11,15 @@ import {
   addBuy, removeBuy, setFinalAmount, closeSession,
   calcParticipant, calcSession, buildWhatsAppSummary
 } from '../storage/storage';
-import { C, Card, Btn, BalanceBadge, Divider, formatMoney } from '../components/UI';
-import { GS } from '../components/GlobalStyles';
+import { Card, Btn, BalanceBadge, Divider, formatMoney } from '../components/UI';
+import { createGlobalStyles } from '../components/GlobalStyles';
+import { useTheme } from '../theme/ThemeContext';
 
 export default function SessionScreen({ route, navigation }) {
   const { sessionId } = route.params;
   const insets = useSafeAreaInsets();
+  const { C } = useTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
   const [session, setSession] = useState(null);
   const [allPlayers, setAllPlayers] = useState([]);
   const [addPlayerModal, setAddPlayerModal] = useState(false);
@@ -172,7 +175,7 @@ export default function SessionScreen({ route, navigation }) {
                   <TouchableOpacity
                     onPress={() => handleRemoveParticipant(p.playerId, p.name)}
                     style={{ padding: 6 }}>
-                    <Text style={{ fontSize: 18, color: C.muted }}>✕</Text>
+                    <Text style={{ fontSize: 20, color: C.muted }}>✕</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -190,7 +193,7 @@ export default function SessionScreen({ route, navigation }) {
                     <TouchableOpacity
                       onPress={() => handleRemoveBuy(p.playerId, i, b.amount)}
                       style={{ padding: 4 }}>
-                      <Text style={{ fontSize: 14, color: C.muted }}>🗑</Text>
+                      <Text style={{ fontSize: 16, color: C.muted }}>🗑</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -288,7 +291,7 @@ export default function SessionScreen({ route, navigation }) {
                     <Text style={styles.avatarTextSm}>{player.name[0].toUpperCase()}</Text>
                   </View>
                   <Text style={styles.playerOptionText}>{player.name}</Text>
-                  <Text style={{ fontSize: 20, color: C.accent }}>+</Text>
+                  <Text style={{ fontSize: 22, color: C.accent }}>+</Text>
                 </TouchableOpacity>
               ))
             )}
@@ -352,55 +355,57 @@ export default function SessionScreen({ route, navigation }) {
   );
 }
 
-const styles = {
-  ...GS,
+function createStyles(C) {
+  return {
+  ...createGlobalStyles(C),
   ...StyleSheet.create({
     // modalTitle se sobreescribe porque en esta pantalla va seguido de modalSub (menos margen)
-    modalTitle: { fontSize: 18, fontWeight: '800', color: C.white, marginBottom: 4 },
+    modalTitle: { fontSize: 20, fontWeight: '800', color: C.white, marginBottom: 4 },
     summaryCard: { marginBottom: 12, alignItems: 'center' },
-    sectionLabel: { fontSize: 11, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 4 },
-    bigPot: { fontSize: 38, fontWeight: '800', color: C.accent, marginBottom: 4 },
-    metaText: { fontSize: 13, color: C.gray, flex: 1 },
-    diffWarn: { fontSize: 12, color: C.red, fontWeight: '600' },
+    sectionLabel: { fontSize: 12, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 4 },
+    bigPot: { fontSize: 43, fontWeight: '800', color: C.accent, marginBottom: 4 },
+    metaText: { fontSize: 15, color: C.gray, flex: 1 },
+    diffWarn: { fontSize: 13, color: C.red, fontWeight: '600' },
     closedBanner: {
-      marginTop: 10, backgroundColor: '#1a3a2a',
+      marginTop: 10, backgroundColor: C.successSoftBg,
       paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8,
     },
-    closedText: { fontSize: 13, color: C.green, fontWeight: '700' },
+    closedText: { fontSize: 15, color: C.green, fontWeight: '700' },
     actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     actionBtn: {
       flex: 1, backgroundColor: C.card, borderRadius: 12,
       borderWidth: 1, borderColor: C.cardBorder,
       paddingVertical: 12, alignItems: 'center',
     },
-    actionIcon: { fontSize: 22, marginBottom: 4 },
-    actionText: { fontSize: 12, fontWeight: '600', color: C.white },
-    label: { fontSize: 11, fontWeight: '600', color: C.gray, letterSpacing: 0.5, marginBottom: 6 },
+    actionIcon: { fontSize: 25, marginBottom: 4 },
+    actionText: { fontSize: 13, fontWeight: '600', color: C.white },
+    label: { fontSize: 12, fontWeight: '600', color: C.gray, letterSpacing: 0.5, marginBottom: 6 },
     buyRow: { marginBottom: 5, gap: 6 },
-    buyText: { flex: 1, fontSize: 14, color: C.white },
-    buyTime: { fontSize: 12, color: C.muted, marginRight: 8 },
-    emptyBuys: { fontSize: 13, color: C.muted, marginBottom: 6 },
-    totalLabel: { flex: 1, fontSize: 13, color: C.gray },
-    totalAmount: { fontSize: 15, fontWeight: '700', color: C.white },
+    buyText: { flex: 1, fontSize: 16, color: C.white },
+    buyTime: { fontSize: 13, color: C.muted, marginRight: 8 },
+    emptyBuys: { fontSize: 15, color: C.muted, marginBottom: 6 },
+    totalLabel: { flex: 1, fontSize: 15, color: C.gray },
+    totalAmount: { fontSize: 17, fontWeight: '700', color: C.white },
     addBuyBtn: { marginTop: 8, paddingVertical: 6 },
-    addBuyText: { fontSize: 14, color: C.accent, fontWeight: '600' },
-    finalAmount: { fontSize: 20, fontWeight: '700', color: C.white, marginTop: 2 },
+    addBuyText: { fontSize: 16, color: C.accent, fontWeight: '600' },
+    finalAmount: { fontSize: 22, fontWeight: '700', color: C.white, marginTop: 2 },
     balanceBox: { marginTop: 10, padding: 10, borderRadius: 10, alignItems: 'center' },
-    winBox: { backgroundColor: '#0a1e40' },
-    loseBox: { backgroundColor: '#2a0d0d' },
-    evenBox: { backgroundColor: '#1a1a1a' },
-    balanceMsg: { fontSize: 15, fontWeight: '700' },
+    winBox: { backgroundColor: C.infoSoftBg },
+    loseBox: { backgroundColor: C.dangerSoftBg },
+    evenBox: { backgroundColor: C.neutralSoftBg },
+    balanceMsg: { fontSize: 17, fontWeight: '700' },
     addPlayerBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
       paddingVertical: 14, borderWidth: 1, borderColor: C.cardBorder,
       borderRadius: 12, borderStyle: 'dashed', marginBottom: 12,
     },
-    addPlayerText: { fontSize: 15, color: C.accent, fontWeight: '600' },
-    noPlayersText: { fontSize: 14, color: C.gray, marginBottom: 16, lineHeight: 20 },
+    addPlayerText: { fontSize: 17, color: C.accent, fontWeight: '600' },
+    noPlayersText: { fontSize: 16, color: C.gray, marginBottom: 16, lineHeight: 20 },
     playerOption: {
       flexDirection: 'row', alignItems: 'center',
       paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.cardBorder,
     },
-    playerOptionText: { flex: 1, fontSize: 15, color: C.white, fontWeight: '500' },
+    playerOptionText: { flex: 1, fontSize: 17, color: C.white, fontWeight: '500' },
   }),
-};
+  };
+}
