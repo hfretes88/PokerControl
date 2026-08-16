@@ -9,6 +9,14 @@ export default function LineChart({ data, xLabels, height = 220 }) {
   const { C } = useTheme();
   const scrollRef = useRef(null);
 
+  // Scrollear al final (últimos 6 puntos) al montar
+  useEffect(() => {
+    if (!data || data.length < 2 || !xLabels) return;
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: false });
+    }, 50);
+  }, [data, xLabels]);
+
   if (!data || data.length < 2 || !xLabels) return null;
 
   // Ancho total del gráfico según cantidad de puntos
@@ -60,13 +68,6 @@ export default function LineChart({ data, xLabels, height = 220 }) {
       segments.push(makeSeg(p.x, p.y, q.x, q.y, p.v >= 0 ? C.green : C.red));
     }
   });
-
-  // Scrollear al final (últimos 6 puntos) al montar
-  useEffect(() => {
-    setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: false });
-    }, 50);
-  }, [data]);
 
   return (
     <View style={{ height }}>

@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPlayerStats, addPlayerAdjustment, deletePlayerAdjustment } from '../storage/storage';
-import { Card, Btn, Divider, formatMoney } from '../components/UI';
+import { Card, Btn, formatMoney } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
 import LineChart from '../components/LineChart';
@@ -25,16 +25,14 @@ export default function StatsScreen({ route }) {
   const [adjDescription, setAdjDescription] = useState('');
   const [adjAmount, setAdjAmount] = useState('');
 
-  useFocusEffect(
-    useCallback(() => { load(); }, [])
-  );
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const data = await getPlayerStats(playerId);
     setStats(data);
     setLoading(false);
-  }
+  }, [playerId]);
+
+  useFocusEffect(load);
 
   function openAdjModal() {
     setAdjType('cobro');

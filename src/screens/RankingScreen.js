@@ -54,7 +54,6 @@ export default function RankingScreen({ navigation }) {
   }
 
   const podium = ranking.slice(0, 3);
-  const rest = ranking.slice(3);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>

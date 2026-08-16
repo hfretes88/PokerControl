@@ -11,6 +11,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { genId, safeParse } from './id';
 
 const DEBTS_KEY   = 'poker_debts';
 const BACKUP_KEY  = 'poker_debts_backup';
@@ -19,7 +20,7 @@ const BACKUP_KEY  = 'poker_debts_backup';
 
 export async function getAllDebts() {
   const raw = await AsyncStorage.getItem(DEBTS_KEY);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse(raw, []);
 }
 
 export async function getPendingDebts() {
@@ -58,7 +59,7 @@ async function saveBackup(debts) {
 
 async function getBackup() {
   const raw = await AsyncStorage.getItem(BACKUP_KEY);
-  return raw ? JSON.parse(raw) : null;
+  return safeParse(raw, null);
 }
 
 async function clearBackup() {
@@ -73,13 +74,19 @@ export async function canUndoReNet() {
   const backup = await getBackup();
   if (!backup) return { canUndo: false, reason: 'no_backup' };
 
-  // Verificar si hay pagos registrados sobre deudas consolidadas
+  // Verificar si se registró algún pago nuevo (sobre cualquier deuda, no
+  // solo las consolidadas) desde que se guardó el backup: deshacer
+  // pisaría ese pago con el estado viejo.
   const currentDebts = await getAllDebts();
-  const consolidatedWithPayments = currentDebts.filter(
-    d => d.isConsolidated && d.payments && d.payments.length > 0
+  const backupPaymentCounts = new Map(
+    backup.debts.map(d => [d.id, (d.payments || []).length])
   );
+  const hasNewPayments = currentDebts.some(d => {
+    const before = backupPaymentCounts.get(d.id) ?? 0;
+    return (d.payments || []).length > before;
+  });
 
-  if (consolidatedWithPayments.length > 0) {
+  if (hasNewPayments) {
     return { canUndo: false, reason: 'has_payments' };
   }
 
@@ -107,17 +114,26 @@ function netDebts(allDebts) {
     const sign = idA === keyA.id ? 1 : -1;
 
     if (!netMap[key]) {
-      netMap[key] = { playerA: keyA, playerB: keyB, net: 0, payments: [] };
+      netMap[key] = { playerA: keyA, playerB: keyB, net: 0, payments: [], sourceDebts: [] };
     }
     netMap[key].net += sign * d.pendingAmount;
     netMap[key].payments.push(...d.payments);
+    netMap[key].sourceDebts.push(d);
   });
 
   const now = new Date().toISOString();
   const consolidatedDebts = [];
 
-  Object.values(netMap).forEach(({ playerA, playerB, net, payments }) => {
+  Object.values(netMap).forEach(({ playerA, playerB, net, payments, sourceDebts }) => {
     if (Math.abs(net) < 1) return;
+
+    // Si hay una sola deuda pendiente entre este par, no hay nada que
+    // consolidar: se mantiene tal cual (conserva su sessionId real, así
+    // DebtScreen puede seguir encontrándola para registrar pagos).
+    if (sourceDebts.length === 1) {
+      consolidatedDebts.push(sourceDebts[0]);
+      return;
+    }
 
     const fromPlayer = net > 0 ? playerA : playerB;
     const toPlayer   = net > 0 ? playerB : playerA;
@@ -125,7 +141,7 @@ function netDebts(allDebts) {
     const totalPaid  = payments.reduce((sum, p) => sum + p.amount, 0);
 
     consolidatedDebts.push({
-      id:             `net_${fromPlayer.id}_${toPlayer.id}_${Date.now()}`,
+      id:             `net_${fromPlayer.id}_${toPlayer.id}_${genId()}`,
       fromPlayer,
       toPlayer,
       sessionId:      'neteado',
@@ -162,7 +178,7 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
 
   const now = new Date().toISOString();
   const newDebts = calcDebtsResult.map(debt => ({
-    id:             `${session.id}_${debt.fromId}_${debt.toId}_${Date.now()}`,
+    id:             `${session.id}_${debt.fromId}_${debt.toId}_${genId()}`,
     fromPlayer:     { id: debt.fromId, name: debt.from },
     toPlayer:       { id: debt.toId,   name: debt.to },
     sessionId:      session.id,

@@ -8,10 +8,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  getDebtsForPlayer, markAsPaid,
-  debtStatusColor,
-} from '../storage/debts';
+import { getDebtsForPlayer, markAsPaid } from '../storage/debts';
 import { formatMoney } from './UI';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -44,15 +41,13 @@ export default function PlayerDebtsSection({ playerId }) {
   const [owes, setOwes] = useState([]);  // lo que debe
   const [owed, setOwed] = useState([]);  // lo que le deben
 
-  useFocusEffect(
-    useCallback(() => { load(); }, [playerId])
-  );
+  const load = useCallback(async () => {
+    const { owes: o, owed: w } = await getDebtsForPlayer(playerId);
+    setOwes(o.filter(debt => debt.status !== 'paid'));
+    setOwed(w.filter(debt => debt.status !== 'paid'));
+  }, [playerId]);
 
-  async function load() {
-    const { owes: o, owed: d } = await getDebtsForPlayer(playerId);
-    setOwes(o.filter(d => d.status !== 'paid'));
-    setOwed(d.filter(d => d.status !== 'paid'));
-  }
+  useFocusEffect(load);
 
   async function handleMarkAllPaid(debts, playerName) {
     const total = debts.reduce((sum, d) => sum + d.pendingAmount, 0);

@@ -16,7 +16,7 @@ import {
   debtStatusLabel,
   debtStatusColor,
 } from '../storage/debts';
-import { Card, Btn, formatMoney } from '../components/UI';
+import { Btn, formatMoney } from '../components/UI';
 import { useTheme } from '../theme/ThemeContext';
 
 function buildWhatsAppText(groups) {

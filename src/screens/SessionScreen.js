@@ -28,17 +28,15 @@ export default function SessionScreen({ route, navigation }) {
   const [buyAmount, setBuyAmount] = useState('');
   const [finalInput, setFinalInput] = useState('');
 
-  useFocusEffect(
-    useCallback(() => { load(); }, [])
-  );
-
-  async function load() {
+  const load = useCallback(async () => {
     const s = await getSession(sessionId);
     const p = await getPlayers();
     setSession(s);
     setAllPlayers(p);
     if (s) navigation.setOptions({ title: s.name });
-  }
+  }, [sessionId, navigation]);
+
+  useFocusEffect(load);
 
   function availablePlayers() {
     if (!session) return [];

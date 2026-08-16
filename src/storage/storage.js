@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateDebtsFromSession, deleteDebtsForSession } from './debts';
+import { genId, safeParse } from './id';
 
 const KEYS = {
   SESSIONS: 'poker_sessions',
@@ -10,13 +11,13 @@ const KEYS = {
 
 export async function getPlayers() {
   const raw = await AsyncStorage.getItem(KEYS.PLAYERS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse(raw, []);
 }
 
 export async function savePlayer(name) {
   const players = await getPlayers();
   const newPlayer = {
-    id: Date.now().toString(),
+    id: genId(),
     name: name.trim(),
     createdAt: new Date().toISOString(),
   };
@@ -35,7 +36,7 @@ export async function deletePlayer(playerId) {
 
 export async function getSessions() {
   const raw = await AsyncStorage.getItem(KEYS.SESSIONS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse(raw, []);
 }
 
 export async function getSession(sessionId) {
@@ -46,7 +47,7 @@ export async function getSession(sessionId) {
 export async function createSession(name) {
   const sessions = await getSessions();
   const newSession = {
-    id: Date.now().toString(),
+    id: genId(),
     name: name.trim(),
     createdAt: new Date().toISOString(),
     status: 'active',
@@ -74,7 +75,7 @@ export async function createSessionWithBuys(name, entries) {
     }));
 
   const newSession = {
-    id: Date.now().toString(),
+    id: genId(),
     name: name.trim(),
     createdAt: now,
     status: 'active',
@@ -264,7 +265,7 @@ export async function addPlayerAdjustment(playerId, { description, amount }) {
   if (idx === -1) return null;
   if (!players[idx].adjustments) players[idx].adjustments = [];
   players[idx].adjustments.push({
-    id: Date.now().toString(),
+    id: genId(),
     description: description.trim(),
     amount: Number(amount),
     date: new Date().toISOString(),
@@ -356,13 +357,13 @@ export function buildWhatsAppSummary(session) {
   });
 
   sorted.forEach(p => {
-    const { totalBought, finalAmount, balance } = calcParticipant(p);
+    const { balance } = calcParticipant(p);
     if (p.finalAmount === null) {
       text += `👤 ${p.name}: sin resultado\n`;
     } else {
       const emoji = balance > 0 ? '🏆' : balance < 0 ? '💸' : '🤝';
       const sign = balance > 0 ? '+' : '';
-      text += `${emoji} ${p.name}: ${balance.toLocaleString('es-AR')}$\n`;
+      text += `${emoji} ${p.name}: ${sign}${balance.toLocaleString('es-AR')}$\n`;
     }
   });
 
