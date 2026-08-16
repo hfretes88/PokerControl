@@ -197,6 +197,25 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
 }
 
 /**
+ * Indica si hay algo para consolidar: al menos un par de jugadores con
+ * 2+ deudas pendientes entre ellos. Como generateDebtsFromSession ya
+ * netea automáticamente en cada cierre de partida, esto normalmente da
+ * false — solo es true en casos raros (p. ej. datos migrados a mano).
+ */
+export async function hasDebtsToReorganize() {
+  const debts = await getAllDebts();
+  const pending = debts.filter(d => d.status !== 'paid');
+  const counts = {};
+  pending.forEach(d => {
+    const idA = d.fromPlayer.id;
+    const idB = d.toPlayer.id;
+    const key = idA < idB ? `${idA}|${idB}` : `${idB}|${idA}`;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.values(counts).some(n => n >= 2);
+}
+
+/**
  * Reorganiza manualmente todas las deudas pendientes.
  * Guarda backup antes de netear para poder deshacer.
  */

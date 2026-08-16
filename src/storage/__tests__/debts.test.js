@@ -10,6 +10,7 @@ import {
   reNetAllDebts,
   undoReNet,
   canUndoReNet,
+  hasDebtsToReorganize,
 } from '../debts';
 
 const ana  = { id: '1', name: 'Ana' };
@@ -190,5 +191,37 @@ describe('getPendingDebts / getDebtsForPlayer', () => {
     expect(anaDebts.owes).toHaveLength(0);
     expect(betoDebts.owes).toHaveLength(1);
     expect(betoDebts.owed).toHaveLength(0);
+  });
+});
+
+describe('hasDebtsToReorganize', () => {
+  it('da false en el flujo normal: generateDebtsFromSession ya netea sola', async () => {
+    await generateDebtsFromSession(session('s1'), [
+      { from: beto.name, fromId: beto.id, to: ana.name, toId: ana.id, amount: 50 },
+    ]);
+    await generateDebtsFromSession(session('s2'), [
+      { from: beto.name, fromId: beto.id, to: ana.name, toId: ana.id, amount: 30 },
+    ]);
+    expect(await hasDebtsToReorganize()).toBe(false);
+  });
+
+  it('da false si no hay ninguna deuda pendiente', async () => {
+    expect(await hasDebtsToReorganize()).toBe(false);
+  });
+
+  it('da true si hay 2+ deudas pendientes sin netear entre el mismo par (p. ej. datos migrados a mano)', async () => {
+    const now = new Date().toISOString();
+    const rawDebts = [
+      {
+        id: 'd1', fromPlayer: beto, toPlayer: ana, sessionId: 's1', sessionName: 'S1',
+        originalAmount: 50, pendingAmount: 50, status: 'pending', payments: [], createdAt: now, isConsolidated: false,
+      },
+      {
+        id: 'd2', fromPlayer: beto, toPlayer: ana, sessionId: 's2', sessionName: 'S2',
+        originalAmount: 30, pendingAmount: 30, status: 'pending', payments: [], createdAt: now, isConsolidated: false,
+      },
+    ];
+    await AsyncStorage.setItem('poker_debts', JSON.stringify(rawDebts));
+    expect(await hasDebtsToReorganize()).toBe(true);
   });
 });

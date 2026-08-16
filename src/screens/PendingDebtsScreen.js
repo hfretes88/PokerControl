@@ -13,6 +13,7 @@ import {
   reNetAllDebts,
   undoReNet,
   canUndoReNet,
+  hasDebtsToReorganize,
   debtStatusLabel,
   debtStatusColor,
 } from '../storage/debts';
@@ -239,6 +240,7 @@ export default function PendingDebtsScreen() {
   const [loading, setLoading]       = useState(true);
   const [payModal, setPayModal]     = useState(null);
   const [undoState, setUndoState]   = useState({ canUndo: false, reason: null }); // estado del botón deshacer
+  const [canReorganize, setCanReorganize] = useState(false);
 
   useFocusEffect(
     useCallback(() => { load(); }, [])
@@ -246,12 +248,14 @@ export default function PendingDebtsScreen() {
 
   async function load() {
     setLoading(true);
-    const [data, undoStatus] = await Promise.all([
+    const [data, undoStatus, reorganizable] = await Promise.all([
       getPendingDebtsByDebtor(),
       canUndoReNet(),
+      hasDebtsToReorganize(),
     ]);
     setGroups(data);
     setUndoState(undoStatus);
+    setCanReorganize(reorganizable);
     setLoading(false);
   }
 
@@ -346,8 +350,14 @@ export default function PendingDebtsScreen() {
             <Text style={styles.reNetBtnIcon}>🔒</Text>
             <Text style={styles.reNetBtnTextDisabled}>Reorganizar (bloqueado por pagos)</Text>
           </View>
+        ) : !canReorganize ? (
+          // Nada para consolidar: las deudas ya se netean solas al cerrar cada partida
+          <View style={[styles.reNetBtn, styles.reNetBtnDisabled]}>
+            <Text style={styles.reNetBtnIcon}>✓</Text>
+            <Text style={styles.reNetBtnTextDisabled}>No hay deudas para reorganizar</Text>
+          </View>
         ) : (
-          // Sin backup → botón reorganizar disponible
+          // Hay 2+ deudas pendientes entre el mismo par → reorganizar disponible
           <TouchableOpacity style={styles.reNetBtn} onPress={handleReNet} activeOpacity={0.8}>
             <Text style={styles.reNetBtnIcon}>⚡</Text>
             <Text style={styles.reNetBtnText}>Reorganizar deudas</Text>
