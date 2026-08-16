@@ -2,13 +2,12 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, Alert, Modal, ScrollView, KeyboardAvoidingView,
-  Platform, StatusBar
+  Platform
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getSessions, createSessionWithBuys, deleteSession, getPlayers } from '../storage/storage';
+import { getSessionsBySeason, createSessionWithBuys, deleteSession, getPlayers } from '../storage/storage';
 import { Card, Btn, formatMoney } from '../components/UI';
-import InfoModal from '../components/InfoModal';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -20,21 +19,24 @@ function defaultSessionName() {
   return `Party ${dd}${mm}${yy}`;
 }
 
-export default function HomeScreen({ navigation }) {
+export default function HomeScreen({ navigation, route }) {
+  const { seasonId, seasonName } = route.params;
   const insets = useSafeAreaInsets();
-  const { C, isDark } = useTheme();
+  const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [sessions, setSessions] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [aboutVisible, setAboutVisible] = useState(false);
   const [sessionName, setSessionName] = useState('');
   const [allPlayers, setAllPlayers] = useState([]);
   const [selectedIds, setSelectedIds] = useState({});
   const [initialAmount, setInitialAmount] = useState('');
 
-  useFocusEffect(
-    useCallback(() => { loadSessions(); }, [])
-  );
+  const loadSessions = useCallback(async () => {
+    const data = await getSessionsBySeason(seasonId);
+    setSessions(data);
+  }, [seasonId]);
+
+  useFocusEffect(useCallback(() => { loadSessions(); }, [loadSessions]));
 
   async function openModal() {
     const players = await getPlayers();
@@ -75,14 +77,9 @@ export default function HomeScreen({ navigation }) {
       return;
     }
     const entries = selected.map(p => ({ player: p, amount }));
-    await createSessionWithBuys(name, entries);
+    await createSessionWithBuys(name, entries, seasonId);
     resetModal();
     loadSessions();
-  }
-
-  async function loadSessions() {
-    const data = await getSessions();
-    setSessions(data);
   }
 
   async function handleDelete(session) {
@@ -104,37 +101,11 @@ export default function HomeScreen({ navigation }) {
   const selectedCount = allPlayers.filter(p => selectedIds[p.id]).length;
   const allSelected = allPlayers.length > 0 && allPlayers.every(p => selectedIds[p.id]);
 
-  // Altura real del header respetando status bar
-  const headerPaddingTop = insets.top + 12;
   // FAB separado de la navigation bar
   const fabBottom = insets.bottom + 20;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.card} />
-
-      {/* Header custom que respeta status bar */}
-      <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerIcon}>♠</Text>
-          <TouchableOpacity onPress={() => setAboutVisible(true)} activeOpacity={0.7}>
-            <Text style={styles.title}>Poker Control</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.headerBtns}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Ranking')}
-            style={[styles.playersBtn, { marginRight: 8 }]}>
-            <Text style={styles.playersBtnText}>🏆</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Players')}
-            style={styles.playersBtn}>
-            <Text style={styles.playersBtnText}>👥  Jugadores</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <FlatList
         data={sessions}
         keyExtractor={item => item.id}
@@ -143,6 +114,16 @@ export default function HomeScreen({ navigation }) {
           paddingBottom: fabBottom + 70, // espacio para el FAB
           flexGrow: 1,
         }}
+        ListHeaderComponent={
+          <TouchableOpacity
+            style={styles.rankingBtn}
+            onPress={() => navigation.navigate('Ranking', { seasonId, seasonName })}
+            activeOpacity={0.8}>
+            <Text style={styles.rankingBtnIcon}>🏆</Text>
+            <Text style={styles.rankingBtnText}>Ver ranking de esta temporada</Text>
+            <Text style={styles.rankingBtnArrow}>›</Text>
+          </TouchableOpacity>
+        }
         ListEmptyComponent={
           // Empty state centrado verticalmente
           <View style={styles.empty}>
@@ -196,19 +177,6 @@ export default function HomeScreen({ navigation }) {
         activeOpacity={0.85}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
-
-      <InfoModal
-        visible={aboutVisible}
-        onClose={() => setAboutVisible(false)}
-        title="♠ Poker Control"
-      >
-        <Text style={styles.aboutText}>
-          Poker Control te permite organizar y registrar tus partidas de poker entre amigos.
-        </Text>
-        <Text style={styles.aboutText}>
-          Creá sesiones, sumá jugadores, registrá compras y finalizá partidas para llevar un historial completo de resultados, balances y estadísticas de cada jugador.
-        </Text>
-      </InfoModal>
 
       {/* Modal nueva partida */}
       <Modal visible={modalVisible} transparent animationType="slide">
@@ -306,23 +274,6 @@ function createStyles(C) {
   return {
   ...createGlobalStyles(C),
   ...StyleSheet.create({
-    // Header
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingBottom: 12,
-      backgroundColor: C.card,
-      borderBottomWidth: 1, borderBottomColor: C.cardBorder,
-    },
-    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerIcon: { fontSize: 20, color: C.accent, fontWeight: '900' },
-    title: { fontSize: 20, fontWeight: '800', color: C.accent },
-    headerBtns: { flexDirection: 'row', alignItems: 'center' },
-    playersBtn: {
-      backgroundColor: C.bg, paddingHorizontal: 14, paddingVertical: 8,
-      borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,
-    },
-    playersBtnText: { fontSize: 15, color: C.white, fontWeight: '600' },
-
     // Lista
     rightCol: { alignItems: 'flex-end', marginRight: 10 },
     sessionName: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 3 },
@@ -379,7 +330,6 @@ function createStyles(C) {
       borderWidth: 1, borderColor: C.infoSoftBorder,
     },
     previewText: { fontSize: 15, color: C.green, fontWeight: '700' },
-    aboutText: { fontSize: 16, color: C.gray, lineHeight: 22, marginBottom: 10 },
   }),
   };
 }

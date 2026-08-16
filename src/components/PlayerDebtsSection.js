@@ -47,7 +47,7 @@ export default function PlayerDebtsSection({ playerId }) {
     setOwed(w.filter(debt => debt.status !== 'paid'));
   }, [playerId]);
 
-  useFocusEffect(load);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function handleMarkAllPaid(debts, playerName) {
     const total = debts.reduce((sum, d) => sum + d.pendingAmount, 0);

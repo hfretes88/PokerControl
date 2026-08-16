@@ -13,23 +13,22 @@ import { useTheme } from '../theme/ThemeContext';
 const MEDALS = ['🥇', '🥈', '🥉'];
 const PODIUM_COLORS = ['#4da6ff', '#b0b8c0', '#cd7f32'];
 
-export default function RankingScreen({ navigation }) {
+export default function RankingScreen({ navigation, route }) {
+  const { seasonId, seasonName } = route.params || {};
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => { load(); }, [])
-  );
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
-    const data = await getGlobalRanking();
+    const data = await getGlobalRanking(seasonId);
     setRanking(data);
     setLoading(false);
-  }
+  }, [seasonId]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loading) {
     return (
@@ -46,7 +45,9 @@ export default function RankingScreen({ navigation }) {
           <Text style={styles.emptyIcon}>🏆</Text>
           <Text style={styles.emptyText}>Sin ranking aún</Text>
           <Text style={styles.emptyMuted}>
-            El ranking aparece cuando al menos una partida esté cerrada.
+            {seasonId
+              ? `Todavía no se cerró ninguna partida en ${seasonName}.`
+              : 'El ranking aparece cuando al menos una partida esté cerrada.'}
           </Text>
         </View>
       </SafeAreaView>
@@ -69,11 +70,12 @@ export default function RankingScreen({ navigation }) {
                 const p = podium[i];
                 if (!p) return <View key={i} style={{ flex: 1 }} />;
                 const isFirst = i === 0;
+                const balance = seasonId ? p.sessionBalance : p.totalBalance;
                 return (
                   <TouchableOpacity
                     key={p.playerId}
                     style={[styles.podiumItem, isFirst && styles.podiumFirst]}
-                    onPress={() => navigation.navigate('Stats', { playerId: p.playerId, playerName: p.name })}
+                    onPress={() => navigation.navigate('Stats', { playerId: p.playerId, playerName: p.name, seasonId, seasonName })}
                     activeOpacity={0.75}
                   >
                     <Text style={styles.podiumMedal}>{MEDALS[i]}</Text>
@@ -83,8 +85,8 @@ export default function RankingScreen({ navigation }) {
                       </Text>
                     </View>
                     <Text style={styles.podiumName} numberOfLines={1}>{p.name}</Text>
-                    <Text style={[styles.podiumBalance, { color: p.totalBalance >= 0 ? C.green : C.red }]}>
-                      {p.totalBalance > 0 ? '+' : ''}{formatMoney(p.totalBalance)}
+                    <Text style={[styles.podiumBalance, { color: balance >= 0 ? C.green : C.red }]}>
+                      {balance > 0 ? '+' : ''}{formatMoney(balance)}
                     </Text>
                     <Text style={styles.podiumGames}>{p.totalGames} partidas</Text>
                   </TouchableOpacity>
@@ -96,10 +98,12 @@ export default function RankingScreen({ navigation }) {
 
         {/* Lista completa */}
         <Text style={styles.sectionTitle}>Tabla completa</Text>
-        {ranking.map((p, idx) => (
+        {ranking.map((p, idx) => {
+          const balance = seasonId ? p.sessionBalance : p.totalBalance;
+          return (
           <TouchableOpacity
             key={p.playerId}
-            onPress={() => navigation.navigate('Stats', { playerId: p.playerId, playerName: p.name })}
+            onPress={() => navigation.navigate('Stats', { playerId: p.playerId, playerName: p.name, seasonId, seasonName })}
             activeOpacity={0.75}
           >
             <Card style={styles.rowCard}>
@@ -132,14 +136,15 @@ export default function RankingScreen({ navigation }) {
                 </View>
 
                 {/* Balance */}
-                <Text style={[styles.balance, { color: p.totalBalance >= 0 ? C.green : C.red }]}>
-                  {p.totalBalance > 0 ? '+' : ''}{formatMoney(p.totalBalance)}
+                <Text style={[styles.balance, { color: balance >= 0 ? C.green : C.red }]}>
+                  {balance > 0 ? '+' : ''}{formatMoney(balance)}
                 </Text>
 
               </View>
             </Card>
           </TouchableOpacity>
-        ))}
+          );
+        })}
 
       </ScrollView>
     </SafeAreaView>

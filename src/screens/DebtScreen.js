@@ -33,7 +33,7 @@ export default function DebtScreen({ route }) {
     setSessionDebts(all.filter(d => d.sessionId === session.id));
   }, [session.id]);
 
-  useFocusEffect(loadDebts);
+  useFocusEffect(useCallback(() => { loadDebts(); }, [loadDebts]));
 
   function findStoredDebt(from, to) {
     return sessionDebts.find(

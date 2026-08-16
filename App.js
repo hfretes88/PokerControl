@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'react-native';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
+import SeasonsScreen from './src/screens/SeasonsScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
 import SessionScreen from './src/screens/SessionScreen';
@@ -48,7 +49,12 @@ function AppNavigator() {
           contentStyle: { backgroundColor: C.bg },
         }}
       >
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Seasons" component={SeasonsScreen} options={{ headerShown: false }} />
+        <Stack.Screen
+          name="SessionsList"
+          component={HomeScreen}
+          options={({ route }) => ({ title: route.params.seasonName })}
+        />
         <Stack.Screen name="Players" component={PlayersScreen} options={{ title: 'Jugadores' }} />
         <Stack.Screen name="Session" component={SessionScreen} options={{ title: 'Partida' }} />
         <Stack.Screen
@@ -64,7 +70,9 @@ function AppNavigator() {
         <Stack.Screen
           name="Ranking"
           component={RankingScreen}
-          options={{ title: '🏆 Ranking' }}
+          options={({ route }) => ({
+            title: route.params?.seasonName ? `🏆 ${route.params.seasonName}` : '🏆 Ranking histórico',
+          })}
         />
         <Stack.Screen
           name="PendingDebts"

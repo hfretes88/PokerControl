@@ -14,7 +14,7 @@ import LineChart from '../components/LineChart';
 import PlayerDebtsSection from '../components/PlayerDebtsSection';
 
 export default function StatsScreen({ route }) {
-  const { playerId, playerName } = route.params;
+  const { playerId, playerName, seasonId, seasonName } = route.params;
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
@@ -27,12 +27,12 @@ export default function StatsScreen({ route }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const data = await getPlayerStats(playerId);
+    const data = await getPlayerStats(playerId, seasonId);
     setStats(data);
     setLoading(false);
-  }, [playerId]);
+  }, [playerId, seasonId]);
 
-  useFocusEffect(load);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   function openAdjModal() {
     setAdjType('cobro');
@@ -82,7 +82,9 @@ export default function StatsScreen({ route }) {
           <Text style={styles.emptyIcon}>📊</Text>
           <Text style={styles.emptyText}>Sin historial aún</Text>
           <Text style={styles.emptyMuted}>
-            {playerName} todavía no tiene partidas cerradas.
+            {seasonId
+              ? `${playerName} todavía no tiene partidas cerradas en ${seasonName}.`
+              : `${playerName} todavía no tiene partidas cerradas.`}
           </Text>
           <TouchableOpacity style={styles.adjAddBtnEmpty} onPress={openAdjModal}>
             <Text style={styles.adjAddText}>+ Agregar ajuste previo</Text>
@@ -93,7 +95,9 @@ export default function StatsScreen({ route }) {
     );
   }
 
-  const totalIsPositive = stats.totalBalance >= 0;
+  const heroLabel = seasonId ? 'BALANCE DE LA TEMPORADA' : 'BALANCE HISTÓRICO';
+  const heroValue = seasonId ? stats.sessionBalance : stats.totalBalance;
+  const totalIsPositive = heroValue >= 0;
 
   function adjModalView() {
     return (
@@ -159,11 +163,11 @@ export default function StatsScreen({ route }) {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
         {/* Resumen global */}
         <Card style={styles.heroCard}>
-          <Text style={styles.heroLabel}>BALANCE HISTÓRICO</Text>
+          <Text style={styles.heroLabel}>{heroLabel}</Text>
           <Text style={[styles.heroAmount, { color: totalIsPositive ? C.green : C.red }]}>
-            {totalIsPositive ? '+' : ''}{formatMoney(stats.totalBalance)}
+            {totalIsPositive ? '+' : ''}{formatMoney(heroValue)}
           </Text>
-          {stats.adjustmentsTotal !== 0 && (
+          {!seasonId && stats.adjustmentsTotal !== 0 && (
             <Text style={styles.adjBreakdown}>
               Partidas {stats.sessionBalance >= 0 ? '+' : ''}{formatMoney(stats.sessionBalance)}
               {'  ·  '}

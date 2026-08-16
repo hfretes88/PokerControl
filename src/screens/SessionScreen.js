@@ -36,7 +36,7 @@ export default function SessionScreen({ route, navigation }) {
     if (s) navigation.setOptions({ title: s.name });
   }, [sessionId, navigation]);
 
-  useFocusEffect(load);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   function availablePlayers() {
     if (!session) return [];

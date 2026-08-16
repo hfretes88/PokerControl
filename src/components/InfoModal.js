@@ -13,10 +13,11 @@ const APP_VERSION = '1.0.0';
 
 async function exportAllData() {
   // En lugar de getAllKeys + multiGet, leemos las claves conocidas directamente
-  const [playersRaw, sessionsRaw, debtsRaw] = await Promise.all([
+  const [playersRaw, sessionsRaw, debtsRaw, seasonsRaw] = await Promise.all([
     AsyncStorage.getItem('poker_players'),
     AsyncStorage.getItem('poker_sessions'),
     AsyncStorage.getItem('poker_debts'),
+    AsyncStorage.getItem('poker_seasons'),
   ]);
 
   return {
@@ -26,6 +27,7 @@ async function exportAllData() {
       poker_players:  playersRaw  ? JSON.parse(playersRaw)  : [],
       poker_sessions: sessionsRaw ? JSON.parse(sessionsRaw) : [],
       poker_debts:    debtsRaw    ? JSON.parse(debtsRaw)    : [],
+      poker_seasons:  seasonsRaw  ? JSON.parse(seasonsRaw)  : [],
     },
   };
 }
