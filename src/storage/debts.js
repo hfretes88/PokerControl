@@ -15,6 +15,7 @@ import { genId, safeParse } from './id';
 
 const DEBTS_KEY   = 'poker_debts';
 const BACKUP_KEY  = 'poker_debts_backup';
+export const MANUAL_DEBT_SESSION_ID = 'ajuste_previo';
 
 // ─── Lectura ──────────────────────────────────────────────────
 
@@ -139,13 +140,17 @@ function netDebts(allDebts) {
     const toPlayer   = net > 0 ? playerB : playerA;
     const amount     = Math.round(Math.abs(net));
     const totalPaid  = payments.reduce((sum, p) => sum + p.amount, 0);
+    // Si alguna de las deudas combinadas era un ajuste previo, la
+    // consolidada sigue siendo ajuste previo: no puede perder la marca
+    // que la hace contar en el balance del jugador (ver getPlayerStats).
+    const hasManualSource = sourceDebts.some(d => d.sessionId === MANUAL_DEBT_SESSION_ID);
 
     consolidatedDebts.push({
       id:             `net_${fromPlayer.id}_${toPlayer.id}_${genId()}`,
       fromPlayer,
       toPlayer,
-      sessionId:      'neteado',
-      sessionName:    'Deuda consolidada',
+      sessionId:      hasManualSource ? MANUAL_DEBT_SESSION_ID : 'neteado',
+      sessionName:    hasManualSource ? 'Deuda consolidada (incluye ajuste previo)' : 'Deuda consolidada',
       originalAmount: amount + totalPaid,
       pendingAmount:  amount,
       status:         'pending',
@@ -194,6 +199,52 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
   const netted = netDebts([...allDebts, ...newDebts]);
   await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
   return netted;
+}
+
+/**
+ * Registra una deuda manual entre dos jugadores (p. ej. plata pendiente
+ * de antes de usar la app). Se comporta como cualquier deuda de sesión:
+ * se puede pagar parcial, marcar como saldada, y se netea automáticamente
+ * si ya había una deuda pendiente entre el mismo par.
+ */
+export async function addManualDebt({ fromPlayer, toPlayer, amount, description }) {
+  const allDebts = await getAllDebts();
+  const now = new Date().toISOString();
+  const newDebt = {
+    id:             genId(),
+    fromPlayer,
+    toPlayer,
+    sessionId:      MANUAL_DEBT_SESSION_ID,
+    sessionName:    (description || '').trim() || 'Ajuste previo',
+    originalAmount: amount,
+    pendingAmount:  amount,
+    status:         'pending',
+    payments:       [],
+    createdAt:      now,
+    isConsolidated: false,
+  };
+
+  const netted = netDebts([...allDebts, newDebt]);
+  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
+  return netted;
+}
+
+/**
+ * Borra una deuda manual suelta. Solo funciona si todavía no se neteó
+ * con otra deuda del mismo par — una vez consolidada podría incluir
+ * plata de una deuda real de partida, y borrarla la perdería.
+ */
+export async function deleteManualDebt(debtId) {
+  const allDebts = await getAllDebts();
+  const debt = allDebts.find(
+    d => d.id === debtId && d.sessionId === MANUAL_DEBT_SESSION_ID && !d.isConsolidated
+  );
+  if (!debt) {
+    throw new Error('No se puede borrar: ya se combinó con otra deuda entre estos jugadores.');
+  }
+  const updated = allDebts.filter(d => d.id !== debtId);
+  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(updated));
+  return updated;
 }
 
 /**

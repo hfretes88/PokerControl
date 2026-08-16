@@ -11,6 +11,9 @@ import {
   undoReNet,
   canUndoReNet,
   hasDebtsToReorganize,
+  addManualDebt,
+  deleteManualDebt,
+  MANUAL_DEBT_SESSION_ID,
 } from '../debts';
 
 const ana  = { id: '1', name: 'Ana' };
@@ -223,5 +226,78 @@ describe('hasDebtsToReorganize', () => {
     ];
     await AsyncStorage.setItem('poker_debts', JSON.stringify(rawDebts));
     expect(await hasDebtsToReorganize()).toBe(true);
+  });
+});
+
+describe('addManualDebt', () => {
+  it('crea una deuda pendiente con sessionId de ajuste previo', async () => {
+    const debts = await addManualDebt({
+      fromPlayer: beto, toPlayer: ana, amount: 40, description: 'Deuda del asado',
+    });
+    expect(debts).toHaveLength(1);
+    expect(debts[0]).toMatchObject({
+      fromPlayer: beto, toPlayer: ana,
+      sessionId: MANUAL_DEBT_SESSION_ID,
+      sessionName: 'Deuda del asado',
+      pendingAmount: 40,
+      status: 'pending',
+    });
+  });
+
+  it('usa "Ajuste previo" como nombre si no hay descripción', async () => {
+    const [debt] = await addManualDebt({ fromPlayer: beto, toPlayer: ana, amount: 10 });
+    expect(debt.sessionName).toBe('Ajuste previo');
+  });
+
+  it('se puede pagar y marcar como saldada igual que una deuda de sesión', async () => {
+    const [debt] = await addManualDebt({ fromPlayer: beto, toPlayer: ana, amount: 40 });
+    const partial = await registerPayment(debt.id, 15);
+    expect(partial.status).toBe('partial');
+    expect(partial.pendingAmount).toBe(25);
+
+    const paid = await markAsPaid(debt.id);
+    expect(paid.status).toBe('paid');
+    expect(paid.pendingAmount).toBe(0);
+  });
+
+  it('se netea con una deuda pendiente que ya existía entre el mismo par', async () => {
+    await generateDebtsFromSession(session('s1'), [
+      { from: beto.name, fromId: beto.id, to: ana.name, toId: ana.id, amount: 30 },
+    ]);
+    const debts = await addManualDebt({ fromPlayer: beto, toPlayer: ana, amount: 20 });
+    expect(debts).toHaveLength(1);
+    expect(debts[0]).toMatchObject({ pendingAmount: 50, isConsolidated: true });
+  });
+
+  it('la consolidada con una deuda de sesión real conserva la marca de ajuste previo', async () => {
+    // Regresión: si se pierde, esa plata deja de contar en getPlayerStats.
+    await generateDebtsFromSession(session('s1'), [
+      { from: beto.name, fromId: beto.id, to: ana.name, toId: ana.id, amount: 30 },
+    ]);
+    const [merged] = await addManualDebt({ fromPlayer: beto, toPlayer: ana, amount: 20 });
+    expect(merged.sessionId).toBe(MANUAL_DEBT_SESSION_ID);
+  });
+});
+
+describe('deleteManualDebt', () => {
+  it('borra una deuda manual suelta', async () => {
+    const [debt] = await addManualDebt({ fromPlayer: beto, toPlayer: ana, amount: 40 });
+    await deleteManualDebt(debt.id);
+    expect(await getAllDebts()).toHaveLength(0);
+  });
+
+  it('tira error si ya se neteó con otra deuda del mismo par', async () => {
+    await generateDebtsFromSession(session('s1'), [
+      { from: beto.name, fromId: beto.id, to: ana.name, toId: ana.id, amount: 30 },
+    ]);
+    const [merged] = await addManualDebt({ fromPlayer: beto, toPlayer: ana, amount: 20 });
+    await expect(deleteManualDebt(merged.id)).rejects.toThrow();
+  });
+
+  it('tira error si el id no corresponde a una deuda manual', async () => {
+    const [debt] = await generateDebtsFromSession(session('s1'), [
+      { from: beto.name, fromId: beto.id, to: ana.name, toId: ana.id, amount: 30 },
+    ]);
+    await expect(deleteManualDebt(debt.id)).rejects.toThrow();
   });
 });

@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateDebtsFromSession, deleteDebtsForSession } from './debts';
+import { generateDebtsFromSession, deleteDebtsForSession, getAllDebts, MANUAL_DEBT_SESSION_ID } from './debts';
 import { genId, safeParse } from './id';
 
 const KEYS = {
@@ -307,7 +307,16 @@ export async function getPlayerStats(playerId, seasonId) {
     .sort((a, b) => new Date(b.date) - new Date(a.date));
   const adjustmentsTotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
 
-  if (history.length === 0 && adjustments.length === 0) return null;
+  const allDebts = await getAllDebts();
+  const manualDebtsNet = allDebts
+    .filter(d => d.sessionId === MANUAL_DEBT_SESSION_ID && d.status !== 'paid')
+    .reduce((sum, d) => {
+      if (d.toPlayer.id === playerId) return sum + d.pendingAmount;
+      if (d.fromPlayer.id === playerId) return sum - d.pendingAmount;
+      return sum;
+    }, 0);
+
+  if (history.length === 0 && adjustments.length === 0 && manualDebtsNet === 0) return null;
 
   const wins = history.filter(h => h.balance > 0).length;
   const losses = history.filter(h => h.balance < 0).length;
@@ -326,9 +335,10 @@ export async function getPlayerStats(playerId, seasonId) {
     losses,
     ties,
     winRate: history.length > 0 ? Math.round((wins / history.length) * 100) : 0,
-    totalBalance: sessionBalance + adjustmentsTotal,
+    totalBalance: sessionBalance + adjustmentsTotal + manualDebtsNet,
     sessionBalance,
     adjustmentsTotal,
+    manualDebtsNet,
     adjustments,
     bestGame,
     worstGame,
