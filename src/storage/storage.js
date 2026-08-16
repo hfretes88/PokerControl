@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateDebtsFromSession } from './debts';
+import { generateDebtsFromSession, deleteDebtsForSession } from './debts';
 
 const KEYS = {
   SESSIONS: 'poker_sessions',
@@ -101,6 +101,7 @@ export async function deleteSession(sessionId) {
   const sessions = await getSessions();
   const updated = sessions.filter(s => s.id !== sessionId);
   await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(updated));
+  await deleteDebtsForSession(sessionId);
 }
 
 // ─── Participantes ────────────────────────────────────────────────────────────

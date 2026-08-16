@@ -17,7 +17,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 - **Stats** — Per-player history with win rate, best/worst game, and a cumulative balance line chart.
 - **Ranking** — Global leaderboard sorted by historical balance with a podium for the top 3 and a mini trend chart per player.
 - **WhatsApp sharing** — Share a formatted game summary or pending debts list directly to a WhatsApp chat.
-- **Backup & restore** — Export all data (players, sessions, debts) as a JSON file and import it back on any device.
+- **Backup** — Export all data (players, sessions, debts) as a JSON file to share or store elsewhere. *(Import/restore is not implemented yet — see [Roadmap](#roadmap).)*
 
 ---
 
@@ -25,10 +25,10 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 
 | Layer | Technology |
 |---|---|
-| Framework | React Native 0.74 (CLI) |
+| Framework | React Native 0.85 (CLI) |
 | Navigation | React Navigation — Native Stack |
 | Storage | AsyncStorage (100% local, no backend) |
-| Charts | Custom SVG (react-native-svg) |
+| Charts | Custom chart built with plain React Native views (no charting library) |
 | Safe area | react-native-safe-area-context |
 
 ---
@@ -40,7 +40,7 @@ src/
 ├── components/
 │   ├── UI.js                  # Shared components (Card, Btn, BalanceBadge) and color tokens
 │   ├── GlobalStyles.js        # Shared StyleSheet tokens used across screens
-│   ├── InfoModal.js           # About modal with JSON export/import
+│   ├── InfoModal.js           # About modal with JSON export and theme toggle
 │   └── PlayerDebtsSection.js  # Reusable debt summary for StatsScreen
 ├── screens/
 │   ├── HomeScreen.js          # Session list and new session creation
@@ -111,6 +111,12 @@ cd android && ./gradlew assembleRelease
 ```
 
 APK output: `android/app/build/outputs/apk/release/app-release.apk`
+
+---
+
+## Roadmap
+
+- **Import/restore** — Read back a previously exported JSON backup (file picker + merge/replace logic). Currently only export is implemented.
 
 ---
 
