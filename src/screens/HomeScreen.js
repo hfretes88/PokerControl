@@ -323,7 +323,7 @@ function createStyles(C) {
     },
     playerAvatarText: { fontSize: 15, fontWeight: '700', color: C.accent },
     playerRowName: { flex: 1, fontSize: 17, fontWeight: '600', color: C.white },
-    playerRowMuted: { color: C.muted },
+    playerRowMuted: { color: C.gray },
     previewBox: {
       backgroundColor: C.infoSoftBg, borderRadius: 10, padding: 12,
       marginBottom: 16, alignItems: 'center',
