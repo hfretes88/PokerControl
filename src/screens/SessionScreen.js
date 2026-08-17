@@ -380,7 +380,7 @@ function createStyles(C) {
     label: { fontSize: 12, fontWeight: '600', color: C.gray, letterSpacing: 0.5, marginBottom: 6 },
     buyRow: { marginBottom: 5, gap: 6 },
     buyText: { flex: 1, fontSize: 16, color: C.white },
-    buyTime: { fontSize: 13, color: C.muted, marginRight: 8 },
+    buyTime: { fontSize: 13, color: C.gray, marginRight: 8 },
     emptyBuys: { fontSize: 15, color: C.muted, marginBottom: 6 },
     totalLabel: { flex: 1, fontSize: 15, color: C.gray },
     totalAmount: { fontSize: 17, fontWeight: '700', color: C.white },
