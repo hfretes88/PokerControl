@@ -142,6 +142,7 @@ export default function SeasonsScreen({ navigation }) {
       <InfoModal
         visible={aboutVisible}
         onClose={() => setAboutVisible(false)}
+        onImported={load}
         title="♠ Poker Control"
       >
         <Text style={styles.aboutText}>
