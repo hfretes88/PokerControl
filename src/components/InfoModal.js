@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { pick, types, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { pick, types, isErrorWithCode, errorCodes, saveDocuments } from '@react-native-documents/picker';
 import { useTheme } from '../theme/ThemeContext';
 import RNFS from 'react-native-fs';
 
@@ -115,12 +115,14 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
       await RNFS.writeFile(path, json, 'utf8');
 
       if (Platform.OS === 'android') {
-        // En Android usamos el Intent de share con content:// URI via FileProvider
-        await RNFS.scanFile(path); // indexa el archivo
-        await Share.share({
-          title:   'PokerControl — Backup',
-          message: json, // fallback texto
-          url:     `file://${path}`,
+        // Share.share con url: file:// no funciona en Android sin un FileProvider:
+        // termina compartiendo el JSON como texto plano en vez del archivo.
+        // saveDocuments abre el diálogo nativo "Guardar como" y sí guarda un
+        // archivo .json real (en Descargas, Drive, etc.).
+        await saveDocuments({
+          sourceUris: [encodeURI(`file://${path}`)],
+          fileName:   filename,
+          mimeType:   'application/json',
         });
       } else {
         // iOS comparte directo como archivo
@@ -131,6 +133,7 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
       }
 
     } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       if (err.message !== 'User did not share') {
         Alert.alert('Error al exportar', err.message);
       }
