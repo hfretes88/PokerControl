@@ -51,7 +51,8 @@ export async function getActiveSeason() {
 
 /**
  * Crea una nueva temporada activa. Si había una temporada activa, se cierra
- * automáticamente (no hay reapertura ni botón de "cerrar" por separado).
+ * automáticamente (no hay botón de "cerrar" por separado — ver reopenSeason
+ * para volver a activar una ya cerrada).
  */
 export async function createSeason(name) {
   const seasons = await ensureInitialized();
@@ -69,4 +70,48 @@ export async function createSeason(name) {
   updated.push(newSeason);
   await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
   return newSeason;
+}
+
+/**
+ * Vuelve a marcar como activa una temporada cerrada, cerrando automáticamente
+ * la que estuviera activa (mismo comportamiento que createSeason). No hace
+ * falta para poder seguir agregando partidas a una temporada cerrada — eso
+ * ya funciona igual, esto solo cambia cuál se muestra como "Activa".
+ */
+export async function reopenSeason(seasonId) {
+  const seasons = await ensureInitialized();
+  const target = seasons.find(s => s.id === seasonId);
+  if (!target) throw new Error('Temporada no encontrada.');
+  if (target.status === 'active') return seasons;
+
+  const now = new Date().toISOString();
+  const updated = seasons.map(s => {
+    if (s.id === seasonId) return { ...s, status: 'active', closedAt: null };
+    if (s.status === 'active') return { ...s, status: 'closed', closedAt: now };
+    return s;
+  });
+  await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+/**
+ * Borra una temporada vacía (sin partidas). Si era la activa, no queda
+ * ninguna activa hasta que se cree o reabra otra — la pantalla de
+ * Temporadas maneja bien ese estado.
+ */
+export async function deleteSeason(seasonId) {
+  const seasons = await ensureInitialized();
+  const target = seasons.find(s => s.id === seasonId);
+  if (!target) throw new Error('Temporada no encontrada.');
+
+  const sessionsRaw = await AsyncStorage.getItem(SESSIONS_KEY);
+  const sessions = safeParse(sessionsRaw, []);
+  const hasSessions = sessions.some(s => s.seasonId === seasonId);
+  if (hasSessions) {
+    throw new Error('No se puede borrar: esta temporada tiene partidas.');
+  }
+
+  const updated = seasons.filter(s => s.id !== seasonId);
+  await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
+  return updated;
 }
