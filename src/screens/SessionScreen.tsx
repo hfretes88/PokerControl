@@ -11,20 +11,23 @@ import {
   addBuy, removeBuy, setFinalAmount, closeSession,
   calcParticipant, calcSession, buildWhatsAppSummary
 } from '../storage/storage';
+import type { Session, Player, Participant } from '../storage/types';
 import { Card, Btn, BalanceBadge, Divider, formatMoney } from '../components/UI';
+import type { Colors } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
+import type { ScreenProps } from '../navigation/types';
 
-export default function SessionScreen({ route, navigation }) {
+export default function SessionScreen({ route, navigation }: ScreenProps<'Session'>) {
   const { sessionId } = route.params;
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [session, setSession] = useState(null);
-  const [allPlayers, setAllPlayers] = useState([]);
+  const [session, setSession] = useState<Session | null>(null);
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [addPlayerModal, setAddPlayerModal] = useState(false);
-  const [buyModal, setBuyModal] = useState(null);
-  const [finalModal, setFinalModal] = useState(null);
+  const [buyModal, setBuyModal] = useState<Participant | null>(null);
+  const [finalModal, setFinalModal] = useState<Participant | null>(null);
   const [buyAmount, setBuyAmount] = useState('');
   const [finalInput, setFinalInput] = useState('');
 
@@ -38,19 +41,19 @@ export default function SessionScreen({ route, navigation }) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  function availablePlayers() {
+  function availablePlayers(): Player[] {
     if (!session) return [];
     const inSession = new Set(session.participants.map(p => p.playerId));
     return allPlayers.filter(p => !inSession.has(p.id));
   }
 
-  async function handleAddParticipant(player) {
+  async function handleAddParticipant(player: Player) {
     await addParticipant(sessionId, player);
     setAddPlayerModal(false);
     load();
   }
 
-  async function handleRemoveParticipant(playerId, name) {
+  async function handleRemoveParticipant(playerId: string, name: string) {
     Alert.alert('Quitar jugador', `¿Quitar a ${name} de esta partida?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -61,6 +64,7 @@ export default function SessionScreen({ route, navigation }) {
   }
 
   async function handleAddBuy() {
+    if (!buyModal) return;
     const amount = parseFloat(buyAmount.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) { Alert.alert('Monto inválido'); return; }
     await addBuy(sessionId, buyModal.playerId, amount);
@@ -69,7 +73,7 @@ export default function SessionScreen({ route, navigation }) {
     load();
   }
 
-  async function handleRemoveBuy(playerId, buyIndex, amount) {
+  async function handleRemoveBuy(playerId: string, buyIndex: number, amount: number) {
     Alert.alert('Eliminar compra', `¿Eliminar compra de ${formatMoney(amount)}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -80,6 +84,7 @@ export default function SessionScreen({ route, navigation }) {
   }
 
   async function handleSetFinal() {
+    if (!finalModal) return;
     const amount = parseFloat(finalInput.replace(',', '.'));
     if (isNaN(amount) || amount < 0) { Alert.alert('Monto inválido'); return; }
     await setFinalAmount(sessionId, finalModal.playerId, amount);
@@ -89,6 +94,7 @@ export default function SessionScreen({ route, navigation }) {
   }
 
   async function handleCloseSession() {
+    if (!session) return;
     const { diff, status } = calcSession(session);
     const msg = Math.abs(diff) > 1
       ? `⚠️ Los montos no cuadran, ${status} ${formatMoney(diff)}.\n¿Cerrar igual?`
@@ -103,6 +109,7 @@ export default function SessionScreen({ route, navigation }) {
   }
 
   async function handleShareWhatsApp() {
+    if (!session) return;
     const text = buildWhatsAppSummary(session);
     const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
     const canOpen = await Linking.canOpenURL(url);
@@ -353,7 +360,7 @@ export default function SessionScreen({ route, navigation }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return {
   ...createGlobalStyles(C),
   ...StyleSheet.create({

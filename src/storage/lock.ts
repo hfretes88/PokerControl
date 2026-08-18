@@ -1,5 +1,5 @@
 /**
- * lock.js — mutex por clave para operaciones de lectura-modificación-escritura
+ * lock.ts — mutex por clave para operaciones de lectura-modificación-escritura
  * sobre AsyncStorage.
  *
  * AsyncStorage no da atomicidad entre getItem y setItem: si dos operaciones
@@ -15,9 +15,9 @@
  * globales eso generaría un deadlock.
  */
 
-const tails = new Map();
+const tails = new Map<string, Promise<void>>();
 
-export function withLock(key, fn) {
+export function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const previous = tails.get(key) || Promise.resolve();
   const run = previous.then(fn, fn);
   tails.set(key, run.then(() => undefined, () => undefined));

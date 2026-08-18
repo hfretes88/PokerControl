@@ -1,8 +1,9 @@
 import React from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'react-native';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import type { RootStackParamList } from './src/navigation/types';
 
 import SeasonsScreen from './src/screens/SeasonsScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -13,7 +14,7 @@ import DebtScreen from './src/screens/DebtScreen';
 import RankingScreen from './src/screens/RankingScreen';
 import PendingDebtsScreen from './src/screens/PendingDebtsScreen';
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
@@ -25,7 +26,7 @@ export default function App() {
 
 function AppNavigator() {
   const { C, isDark } = useTheme();
-  const navigationTheme = {
+  const navigationTheme: Theme = {
     ...(isDark ? DarkTheme : DefaultTheme),
     colors: {
       ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
@@ -78,7 +79,7 @@ function AppNavigator() {
           name="PendingDebts"
           component={PendingDebtsScreen}
           options={{ title: '💳 Deudas pendientes' }}
-        />        
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

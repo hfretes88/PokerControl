@@ -1,5 +1,5 @@
 /**
- * debts.js — módulo de manejo de deudas
+ * debts.ts — módulo de manejo de deudas
  * Clave AsyncStorage: "poker_debts"
  * Clave backup:       "poker_debts_backup"
  *
@@ -13,6 +13,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { genId, safeParse } from './id';
 import { withLock } from './lock';
+import type {
+  Debt, DebtBackup, DebtPlayerRef, DebtorGroup, DebtTransaction, CanUndoReNetResult, Session,
+} from './types';
 
 const DEBTS_KEY   = 'poker_debts';
 const BACKUP_KEY  = 'poker_debts_backup';
@@ -20,19 +23,19 @@ export const MANUAL_DEBT_SESSION_ID = 'ajuste_previo';
 
 // ─── Lectura ──────────────────────────────────────────────────
 
-export async function getAllDebts() {
+export async function getAllDebts(): Promise<Debt[]> {
   const raw = await AsyncStorage.getItem(DEBTS_KEY);
-  return safeParse(raw, []);
+  return safeParse<Debt[]>(raw, []);
 }
 
-export async function getPendingDebts() {
+export async function getPendingDebts(): Promise<Debt[]> {
   const debts = await getAllDebts();
   return debts.filter(d => d.status !== 'paid');
 }
 
-export async function getPendingDebtsByDebtor() {
+export async function getPendingDebtsByDebtor(): Promise<DebtorGroup[]> {
   const debts = await getPendingDebts();
-  const map = {};
+  const map: Record<string, DebtorGroup> = {};
   debts.forEach(d => {
     const key = d.fromPlayer.id;
     if (!map[key]) map[key] = { player: d.fromPlayer, debts: [], totalPending: 0 };
@@ -42,7 +45,7 @@ export async function getPendingDebtsByDebtor() {
   return Object.values(map).sort((a, b) => b.totalPending - a.totalPending);
 }
 
-export async function getDebtsForPlayer(playerId) {
+export async function getDebtsForPlayer(playerId: string): Promise<{ owes: Debt[]; owed: Debt[] }> {
   const debts = await getAllDebts();
   return {
     owes: debts.filter(d => d.fromPlayer.id === playerId),
@@ -52,19 +55,17 @@ export async function getDebtsForPlayer(playerId) {
 
 // ─── Backup ───────────────────────────────────────────────────
 
-async function saveBackup(debts) {
-  await AsyncStorage.setItem(BACKUP_KEY, JSON.stringify({
-    debts,
-    savedAt: new Date().toISOString(),
-  }));
+async function saveBackup(debts: Debt[]): Promise<void> {
+  const backup: DebtBackup = { debts, savedAt: new Date().toISOString() };
+  await AsyncStorage.setItem(BACKUP_KEY, JSON.stringify(backup));
 }
 
-async function getBackup() {
+async function getBackup(): Promise<DebtBackup | null> {
   const raw = await AsyncStorage.getItem(BACKUP_KEY);
-  return safeParse(raw, null);
+  return safeParse<DebtBackup | null>(raw, null);
 }
 
-async function clearBackup() {
+async function clearBackup(): Promise<void> {
   await AsyncStorage.removeItem(BACKUP_KEY);
 }
 
@@ -72,7 +73,7 @@ async function clearBackup() {
  * Verifica si se puede deshacer la reorganización.
  * Retorna { canUndo, reason } donde reason explica por qué no se puede si aplica.
  */
-export async function canUndoReNet() {
+export async function canUndoReNet(): Promise<CanUndoReNetResult> {
   const backup = await getBackup();
   if (!backup) return { canUndo: false, reason: 'no_backup' };
 
@@ -97,14 +98,22 @@ export async function canUndoReNet() {
 
 // ─── Neteo ────────────────────────────────────────────────────
 
-function netDebts(allDebts) {
+interface NetEntry {
+  playerA: DebtPlayerRef;
+  playerB: DebtPlayerRef;
+  net: number;
+  payments: Debt['payments'];
+  sourceDebts: Debt[];
+}
+
+function netDebts(allDebts: Debt[]): Debt[] {
   const paidDebts    = allDebts.filter(d => d.status === 'paid');
   const pendingDebts = allDebts.filter(d => d.status !== 'paid');
 
   if (pendingDebts.length === 0) return allDebts;
 
   // Construir mapa de saldos netos entre pares
-  const netMap = {};
+  const netMap: Record<string, NetEntry> = {};
 
   pendingDebts.forEach(d => {
     const idA = d.fromPlayer.id;
@@ -124,7 +133,7 @@ function netDebts(allDebts) {
   });
 
   const now = new Date().toISOString();
-  const consolidatedDebts = [];
+  const consolidatedDebts: Debt[] = [];
 
   Object.values(netMap).forEach(({ playerA, playerB, net, payments, sourceDebts }) => {
     if (Math.abs(net) < 1) return;
@@ -166,7 +175,10 @@ function netDebts(allDebts) {
 
 // ─── Creación con neteo automático ───────────────────────────
 
-export async function generateDebtsFromSession(session, calcDebtsResult) {
+export async function generateDebtsFromSession(
+  session: Pick<Session, 'id' | 'name'>,
+  calcDebtsResult: DebtTransaction[]
+): Promise<Debt[]> {
   return withLock(DEBTS_KEY, async () => {
     const allDebts = await getAllDebts();
 
@@ -184,7 +196,7 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
     }
 
     const now = new Date().toISOString();
-    const newDebts = calcDebtsResult.map(debt => ({
+    const newDebts: Debt[] = calcDebtsResult.map(debt => ({
       id:             `${session.id}_${debt.fromId}_${debt.toId}_${genId()}`,
       fromPlayer:     { id: debt.fromId, name: debt.from },
       toPlayer:       { id: debt.toId,   name: debt.to },
@@ -204,17 +216,24 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
   });
 }
 
+interface AddManualDebtInput {
+  fromPlayer: DebtPlayerRef;
+  toPlayer: DebtPlayerRef;
+  amount: number;
+  description?: string;
+}
+
 /**
  * Registra una deuda manual entre dos jugadores (p. ej. plata pendiente
  * de antes de usar la app). Se comporta como cualquier deuda de sesión:
  * se puede pagar parcial, marcar como saldada, y se netea automáticamente
  * si ya había una deuda pendiente entre el mismo par.
  */
-export async function addManualDebt({ fromPlayer, toPlayer, amount, description }) {
+export async function addManualDebt({ fromPlayer, toPlayer, amount, description }: AddManualDebtInput): Promise<Debt[]> {
   return withLock(DEBTS_KEY, async () => {
     const allDebts = await getAllDebts();
     const now = new Date().toISOString();
-    const newDebt = {
+    const newDebt: Debt = {
       id:             genId(),
       fromPlayer,
       toPlayer,
@@ -239,7 +258,7 @@ export async function addManualDebt({ fromPlayer, toPlayer, amount, description 
  * con otra deuda del mismo par — una vez consolidada podría incluir
  * plata de una deuda real de partida, y borrarla la perdería.
  */
-export async function deleteManualDebt(debtId) {
+export async function deleteManualDebt(debtId: string): Promise<Debt[]> {
   return withLock(DEBTS_KEY, async () => {
     const allDebts = await getAllDebts();
     const debt = allDebts.find(
@@ -260,10 +279,10 @@ export async function deleteManualDebt(debtId) {
  * netea automáticamente en cada cierre de partida, esto normalmente da
  * false — solo es true en casos raros (p. ej. datos migrados a mano).
  */
-export async function hasDebtsToReorganize() {
+export async function hasDebtsToReorganize(): Promise<boolean> {
   const debts = await getAllDebts();
   const pending = debts.filter(d => d.status !== 'paid');
-  const counts = {};
+  const counts: Record<string, number> = {};
   pending.forEach(d => {
     const idA = d.fromPlayer.id;
     const idB = d.toPlayer.id;
@@ -277,7 +296,7 @@ export async function hasDebtsToReorganize() {
  * Reorganiza manualmente todas las deudas pendientes.
  * Guarda backup antes de netear para poder deshacer.
  */
-export async function reNetAllDebts() {
+export async function reNetAllDebts(): Promise<Debt[]> {
   return withLock(DEBTS_KEY, async () => {
     const allDebts = await getAllDebts();
 
@@ -294,7 +313,7 @@ export async function reNetAllDebts() {
  * Deshace la última reorganización, restaurando el estado previo.
  * Solo funciona si no hay pagos sobre deudas consolidadas.
  */
-export async function undoReNet() {
+export async function undoReNet(): Promise<Debt[]> {
   return withLock(DEBTS_KEY, async () => {
     const { canUndo, reason } = await canUndoReNet();
     if (!canUndo) {
@@ -305,6 +324,7 @@ export async function undoReNet() {
     }
 
     const backup = await getBackup();
+    if (!backup) throw new Error('No hay reorganización para deshacer.');
     await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(backup.debts));
     await clearBackup();
     return backup.debts;
@@ -313,7 +333,7 @@ export async function undoReNet() {
 
 // ─── Pagos ────────────────────────────────────────────────────
 
-export async function registerPayment(debtId, amount, note = '') {
+export async function registerPayment(debtId: string, amount: number, note: string = ''): Promise<Debt> {
   return withLock(DEBTS_KEY, async () => {
     const debts = await getAllDebts();
     const idx   = debts.findIndex(d => d.id === debtId);
@@ -338,7 +358,7 @@ export async function registerPayment(debtId, amount, note = '') {
   });
 }
 
-export async function markAsPaid(debtId) {
+export async function markAsPaid(debtId: string): Promise<Debt> {
   return withLock(DEBTS_KEY, async () => {
     const debts = await getAllDebts();
     const idx   = debts.findIndex(d => d.id === debtId);
@@ -360,7 +380,7 @@ export async function markAsPaid(debtId) {
   });
 }
 
-export async function deleteDebtsForSession(sessionId) {
+export async function deleteDebtsForSession(sessionId: string): Promise<void> {
   return withLock(DEBTS_KEY, async () => {
     const debts   = await getAllDebts();
     const updated = debts.filter(d => d.sessionId !== sessionId);
@@ -370,7 +390,7 @@ export async function deleteDebtsForSession(sessionId) {
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-export function debtStatusLabel(status) {
+export function debtStatusLabel(status: Debt['status']): string {
   switch (status) {
     case 'paid':    return 'Saldada';
     case 'partial': return 'Parcial';
@@ -378,7 +398,7 @@ export function debtStatusLabel(status) {
   }
 }
 
-export function debtStatusColor(status) {
+export function debtStatusColor(status: Debt['status']): string {
   switch (status) {
     case 'paid':    return '#27ae60';
     case 'partial': return '#f0c040';

@@ -7,21 +7,28 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessions } from '../storage/storage';
 import { getSeasons, createSeason, deleteSeason, reopenSeason } from '../storage/seasons';
+import type { Season } from '../storage/types';
 import { Card, Btn } from '../components/UI';
+import type { Colors } from '../components/UI';
 import InfoModal from '../components/InfoModal';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
+import type { ScreenProps } from '../navigation/types';
 
-function defaultSeasonName(count) {
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function defaultSeasonName(count: number): string {
   return `Temporada ${count + 1}`;
 }
 
-export default function SeasonsScreen({ navigation }) {
+export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
   const insets = useSafeAreaInsets();
   const { C, isDark } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [seasons, setSeasons] = useState([]);
-  const [sessionCounts, setSessionCounts] = useState({});
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [sessionCounts, setSessionCounts] = useState<Record<string, number>>({});
   const [aboutVisible, setAboutVisible] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [seasonName, setSeasonName] = useState('');
@@ -29,8 +36,11 @@ export default function SeasonsScreen({ navigation }) {
   const load = useCallback(async () => {
     const [seasonList, sessions] = await Promise.all([getSeasons(), getSessions()]);
     setSeasons(seasonList);
-    const counts = {};
-    sessions.forEach(s => { counts[s.seasonId] = (counts[s.seasonId] || 0) + 1; });
+    const counts: Record<string, number> = {};
+    sessions.forEach(s => {
+      if (!s.seasonId) return;
+      counts[s.seasonId] = (counts[s.seasonId] || 0) + 1;
+    });
     setSessionCounts(counts);
   }, []);
 
@@ -53,7 +63,7 @@ export default function SeasonsScreen({ navigation }) {
     navigation.navigate('SessionsList', { seasonId: newSeason.id, seasonName: newSeason.name });
   }
 
-  function handleDeleteSeason(season) {
+  function handleDeleteSeason(season: Season) {
     Alert.alert(
       'Borrar temporada',
       `¿Borrar "${season.name}"? Esta acción no se puede deshacer.`,
@@ -67,7 +77,7 @@ export default function SeasonsScreen({ navigation }) {
               await deleteSeason(season.id);
               load();
             } catch (e) {
-              Alert.alert('No se pudo borrar', e.message);
+              Alert.alert('No se pudo borrar', getErrorMessage(e));
             }
           },
         },
@@ -75,7 +85,7 @@ export default function SeasonsScreen({ navigation }) {
     );
   }
 
-  function handleReopenSeason(season) {
+  function handleReopenSeason(season: Season) {
     Alert.alert(
       'Reabrir temporada',
       `"${season.name}" va a pasar a ser la temporada activa${activeSeason ? ` y se va a cerrar "${activeSeason.name}"` : ''}.`,
@@ -244,7 +254,7 @@ export default function SeasonsScreen({ navigation }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return {
   ...createGlobalStyles(C),
   ...StyleSheet.create({

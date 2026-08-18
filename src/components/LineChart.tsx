@@ -9,9 +9,23 @@ import { useTheme } from '../theme/ThemeContext';
 const PAD      = { left: 44, right: 14, top: 16, bottom: 32 };
 const PT_WIDTH = 56; // ancho por punto en el eje X
 
-export default function LineChart({ data, xLabels, height = 220 }) {
+interface LineChartProps {
+  data: number[];
+  xLabels: string[];
+  height?: number;
+}
+
+interface Segment {
+  midX: number;
+  midY: number;
+  length: number;
+  angle: number;
+  color: string;
+}
+
+export default function LineChart({ data, xLabels, height = 220 }: LineChartProps) {
   const { C } = useTheme();
-  const scrollRef = useRef(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   // Scrollear al final (últimos 6 puntos) al montar
   useEffect(() => {
@@ -42,15 +56,15 @@ export default function LineChart({ data, xLabels, height = 220 }) {
   const maxVal = Math.ceil(rawMax / step) * step || step;
   const range  = maxVal - minVal || step;
 
-  const yTicks = [];
+  const yTicks: number[] = [];
   for (let v = minVal; v <= maxVal; v += step) yTicks.push(Math.round(v));
 
-  const toX = i => PAD.left + i * PT_WIDTH;
-  const toY = v => PAD.top + chartH - ((v - minVal) / range) * chartH;
+  const toX = (i: number) => PAD.left + i * PT_WIDTH;
+  const toY = (v: number) => PAD.top + chartH - ((v - minVal) / range) * chartH;
 
   const points = data.map((v, i) => ({ x: toX(i), y: toY(v), v }));
 
-  const makeSeg = (ax, ay, bx, by, color) => {
+  const makeSeg = (ax: number, ay: number, bx: number, by: number, color: string): Segment => {
     const dx = bx - ax;
     const dy = by - ay;
     const length = Math.sqrt(dx * dx + dy * dy);
@@ -58,7 +72,7 @@ export default function LineChart({ data, xLabels, height = 220 }) {
     return { midX: (ax + bx) / 2, midY: (ay + by) / 2, length, angle, color };
   };
 
-  const segments = [];
+  const segments: Segment[] = [];
   points.slice(0, -1).forEach((p, i) => {
     const q = points[i + 1];
     const crossesZero = (p.v >= 0) !== (q.v >= 0);

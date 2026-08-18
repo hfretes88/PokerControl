@@ -9,12 +9,21 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getDebtsForPlayer, markAsPaid } from '../storage/debts';
+import type { Debt, DebtPlayerRef } from '../storage/types';
 import { formatMoney } from './UI';
 import { useTheme } from '../theme/ThemeContext';
+import type { Colors } from './UI';
+
+interface DebtGroup {
+  player: DebtPlayerRef;
+  totalPending: number;
+  sessions: string[];
+  debts: Debt[];
+}
 
 // ─── Agrupar deudas por jugador ───────────────────────────────
-function groupByPlayer(debts, playerKey) {
-  const map = {};
+function groupByPlayer(debts: Debt[], playerKey: 'toPlayer' | 'fromPlayer'): DebtGroup[] {
+  const map: Record<string, DebtGroup> = {};
   debts.forEach(d => {
     const key = d[playerKey].id;
     if (!map[key]) {
@@ -35,11 +44,15 @@ function groupByPlayer(debts, playerKey) {
   return Object.values(map).sort((a, b) => b.totalPending - a.totalPending);
 }
 
-export default function PlayerDebtsSection({ playerId }) {
+interface PlayerDebtsSectionProps {
+  playerId: string;
+}
+
+export default function PlayerDebtsSection({ playerId }: PlayerDebtsSectionProps) {
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [owes, setOwes] = useState([]);  // lo que debe
-  const [owed, setOwed] = useState([]);  // lo que le deben
+  const [owes, setOwes] = useState<Debt[]>([]);  // lo que debe
+  const [owed, setOwed] = useState<Debt[]>([]);  // lo que le deben
 
   const load = useCallback(async () => {
     const { owes: o, owed: w } = await getDebtsForPlayer(playerId);
@@ -49,7 +62,7 @@ export default function PlayerDebtsSection({ playerId }) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  async function handleMarkAllPaid(debts, playerName) {
+  async function handleMarkAllPaid(debts: Debt[], playerName: string) {
     const total = debts.reduce((sum, d) => sum + d.pendingAmount, 0);
     Alert.alert(
       'Saldar deudas',
@@ -173,7 +186,7 @@ export default function PlayerDebtsSection({ playerId }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return StyleSheet.create({
   clean:         { paddingVertical: 12, alignItems: 'center' },
   cleanText:     { fontSize: 15, color: C.gray },

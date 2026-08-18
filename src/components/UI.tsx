@@ -1,16 +1,33 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, ReactNode } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, StyleProp, ViewStyle
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import type { darkColors } from '../theme/colors';
 
-export function Card({ children, style }) {
+export type Colors = typeof darkColors;
+
+interface CardProps {
+  children?: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}
+
+export function Card({ children, style }: CardProps) {
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-export function Btn({ label, onPress, color, small, disabled, loading }) {
+interface BtnProps {
+  label: string;
+  onPress?: () => void;
+  color?: string;
+  small?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
+}
+
+export function Btn({ label, onPress, color, small, disabled, loading }: BtnProps) {
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const bg = disabled ? C.muted : (color || C.accent);
@@ -34,7 +51,11 @@ export function Btn({ label, onPress, color, small, disabled, loading }) {
   );
 }
 
-export function BalanceBadge({ amount }) {
+interface BalanceBadgeProps {
+  amount: number | null | undefined;
+}
+
+export function BalanceBadge({ amount }: BalanceBadgeProps) {
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   if (amount === null || amount === undefined) {
@@ -58,11 +79,11 @@ export function Divider() {
   return <View style={styles.divider} />;
 }
 
-export function formatMoney(n) {
+export function formatMoney(n: number): string {
   return '$' + Number(n).toLocaleString('es-AR');
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return StyleSheet.create({
     card: {
       backgroundColor: C.card,

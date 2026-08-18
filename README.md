@@ -28,6 +28,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 | Layer | Technology |
 |---|---|
 | Framework | React Native 0.85 (CLI) |
+| Language | TypeScript |
 | Navigation | React Navigation — Native Stack |
 | Storage | AsyncStorage (100% local, no backend) |
 | Charts | Custom chart built with plain React Native views (no charting library) |
@@ -39,24 +40,30 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 
 ```
 src/
-├── components/
-│   ├── UI.js                  # Shared components (Card, Btn, BalanceBadge) and color tokens
-│   ├── GlobalStyles.js        # Shared StyleSheet tokens used across screens
-│   ├── InfoModal.js           # About modal with JSON export/import and theme toggle
-│   └── PlayerDebtsSection.js  # Reusable debt summary for StatsScreen
-├── screens/
-│   ├── SeasonsScreen.js       # Season list and new season creation (initial screen)
-│   ├── HomeScreen.js          # Session list and new session creation, scoped to a season
-│   ├── SessionScreen.js       # Session detail: buy-ins, results, close
-│   ├── DebtScreen.js          # Per-session debt settlement with payment tracking
-│   ├── PendingDebtsScreen.js  # Global pending debts grouped by debtor
-│   ├── PlayersScreen.js       # Player management
-│   ├── RankingScreen.js       # Leaderboard with podium, scoped to a season or all-time
-│   └── StatsScreen.js         # Per-player stats, balance chart, debt summary
-└── storage/
-    ├── storage.js             # AsyncStorage CRUD, balance/debt calculations, stats
-    ├── debts.js               # Debt lifecycle: generation, payments, status tracking
-    └── seasons.js             # Season lifecycle: creation, migration, active season
+├── components/                 # TypeScript
+│   ├── UI.tsx                  # Shared components (Card, Btn, BalanceBadge) and color tokens
+│   ├── GlobalStyles.ts         # Shared StyleSheet tokens used across screens
+│   ├── InfoModal.tsx           # About modal with JSON export/import and theme toggle
+│   ├── LineChart.tsx           # Hand-drawn balance-over-time line chart
+│   └── PlayerDebtsSection.tsx  # Reusable debt summary for StatsScreen
+├── screens/                    # TypeScript
+│   ├── SeasonsScreen.tsx      # Season list and new season creation (initial screen)
+│   ├── HomeScreen.tsx         # Session list and new session creation, scoped to a season
+│   ├── SessionScreen.tsx      # Session detail: buy-ins, results, close
+│   ├── DebtScreen.tsx         # Per-session debt settlement with payment tracking
+│   ├── PendingDebtsScreen.tsx # Global pending debts grouped by debtor
+│   ├── PlayersScreen.tsx      # Player management
+│   ├── RankingScreen.tsx      # Leaderboard with podium, scoped to a season or all-time
+│   └── StatsScreen.tsx        # Per-player stats, balance chart, debt summary
+├── navigation/
+│   └── types.ts               # RootStackParamList — typed route params for every screen
+└── storage/                   # TypeScript
+    ├── storage.ts             # AsyncStorage CRUD, balance/debt calculations, stats
+    ├── debts.ts               # Debt lifecycle: generation, payments, status tracking
+    ├── seasons.ts             # Season lifecycle: creation, migration, active season
+    ├── lock.ts                # Per-key mutex serializing AsyncStorage read-modify-write ops
+    ├── id.ts                  # ID generation and safe JSON parsing
+    └── types.ts               # Shared domain types (Player, Session, Debt, Season, ...)
 ```
 
 ---

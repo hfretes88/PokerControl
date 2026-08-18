@@ -6,19 +6,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getGlobalRanking } from '../storage/storage';
+import type { RankingEntry } from '../storage/types';
 import { Card, formatMoney } from '../components/UI';
+import type { Colors } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
+import type { ScreenProps } from '../navigation/types';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const PODIUM_COLORS = ['#4da6ff', '#b0b8c0', '#cd7f32'];
 
-export default function RankingScreen({ navigation, route }) {
+export default function RankingScreen({ navigation, route }: ScreenProps<'Ranking'>) {
   const { seasonId, seasonName } = route.params || {};
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [ranking, setRanking] = useState([]);
+  const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -151,7 +154,7 @@ export default function RankingScreen({ navigation, route }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return {
   ...createGlobalStyles(C),
   ...StyleSheet.create({

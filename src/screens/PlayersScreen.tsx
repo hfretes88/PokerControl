@@ -7,15 +7,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPlayers, savePlayer, deletePlayer } from '../storage/storage';
+import type { Player } from '../storage/types';
 import { Card, Btn } from '../components/UI';
+import type { Colors } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
+import type { ScreenProps } from '../navigation/types';
 
-export default function PlayersScreen({ navigation }) {
+export default function PlayersScreen({ navigation }: ScreenProps<'Players'>) {
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [players, setPlayers] = useState([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
 
@@ -36,7 +39,7 @@ export default function PlayersScreen({ navigation }) {
     load();
   }
 
-  async function handleDelete(player) {
+  async function handleDelete(player: Player) {
     Alert.alert('Eliminar jugador', `¿Eliminar a ${player.name}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -125,7 +128,7 @@ export default function PlayersScreen({ navigation }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return {
     ...createGlobalStyles(C),
     ...StyleSheet.create({
