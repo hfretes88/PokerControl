@@ -30,6 +30,7 @@ export default function SessionScreen({ route, navigation }: ScreenProps<'Sessio
   const [finalModal, setFinalModal] = useState<Participant | null>(null);
   const [buyAmount, setBuyAmount] = useState('');
   const [finalInput, setFinalInput] = useState('');
+  const [expandedBuys, setExpandedBuys] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     const s = await getSession(sessionId);
@@ -40,6 +41,10 @@ export default function SessionScreen({ route, navigation }: ScreenProps<'Sessio
   }, [sessionId, navigation]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  function toggleBuys(playerId: string) {
+    setExpandedBuys(prev => ({ ...prev, [playerId]: !prev[playerId] }));
+  }
 
   function availablePlayers(): Player[] {
     if (!session) return [];
@@ -187,25 +192,40 @@ export default function SessionScreen({ route, navigation }: ScreenProps<'Sessio
 
               <Divider />
 
-              <Text style={styles.label}>Compras de fichas</Text>
-              {p.buys.map((b, i) => (
-                <View key={i} style={[styles.row, styles.buyRow]}>
-                  <Text style={styles.buyText}>🎰 {formatMoney(b.amount)}</Text>
-                  <Text style={styles.buyTime}>
-                    {new Date(b.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                  {!isClosed && (
-                    <TouchableOpacity
-                      onPress={() => handleRemoveBuy(p.playerId, i, b.amount)}
-                      style={styles.p4}>
-                      <Text style={styles.removeBuyIcon}>🗑</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
-
-              {p.buys.length === 0 && (
-                <Text style={styles.emptyBuys}>Sin compras aún</Text>
+              {p.buys.length === 0 ? (
+                <>
+                  <Text style={styles.label}>Compras de fichas</Text>
+                  <Text style={styles.emptyBuys}>Sin compras aún</Text>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.buysHeader}
+                    onPress={() => toggleBuys(p.playerId)}
+                    activeOpacity={0.7}>
+                    <Text style={[styles.label, styles.mb0]}>
+                      Compras de fichas ({p.buys.length})
+                    </Text>
+                    <Text style={styles.buysChevron}>
+                      {expandedBuys[p.playerId] ? '▾' : '▸'}
+                    </Text>
+                  </TouchableOpacity>
+                  {expandedBuys[p.playerId] && p.buys.map((b, i) => (
+                    <View key={i} style={[styles.row, styles.buyRow]}>
+                      <Text style={styles.buyText}>🎰 {formatMoney(b.amount)}</Text>
+                      <Text style={styles.buyTime}>
+                        {new Date(b.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                      {!isClosed && (
+                        <TouchableOpacity
+                          onPress={() => handleRemoveBuy(p.playerId, i, b.amount)}
+                          style={styles.p4}>
+                          <Text style={styles.removeBuyIcon}>🗑</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                </>
               )}
 
               <View style={[styles.row, styles.mt6]}>
@@ -377,6 +397,7 @@ function createStyles(C: Colors) {
     mt8: { marginTop: 8 },
     mt10: { marginTop: 10 },
     mt12: { marginTop: 12 },
+    mb0: { marginBottom: 0 },
     removeIcon: { fontSize: 20, color: C.muted },
     removeBuyIcon: { fontSize: 16, color: C.muted },
     addOptionPlus: { fontSize: 22, color: C.accent },
@@ -397,6 +418,11 @@ function createStyles(C: Colors) {
     actionIcon: { fontSize: 25, marginBottom: 4 },
     actionText: { fontSize: 13, fontWeight: '600', color: C.white },
     label: { fontSize: 12, fontWeight: '600', color: C.gray, letterSpacing: 0.5, marginBottom: 6 },
+    buysHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    buysChevron: { fontSize: 13, color: C.gray, fontWeight: '700' },
     buyRow: { marginBottom: 5, gap: 6 },
     buyText: { flex: 1, fontSize: 16, color: C.white },
     buyTime: { fontSize: 13, color: C.gray, marginRight: 8 },
