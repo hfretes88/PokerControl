@@ -102,7 +102,7 @@ export default function PlayerDebtsSection({ playerId }) {
                 </Text>
               </View>
 
-              <View style={{ flex: 1 }}>
+              <View style={styles.flex1}>
                 <View style={styles.debtNameRow}>
                   <Text style={styles.debtArrow}>→</Text>
                   <Text style={styles.debtPlayerName}>{group.player.name}</Text>
@@ -148,7 +148,7 @@ export default function PlayerDebtsSection({ playerId }) {
                 </Text>
               </View>
 
-              <View style={{ flex: 1 }}>
+              <View style={styles.flex1}>
                 <View style={styles.debtNameRow}>
                   <Text style={[styles.debtArrow, { color: C.green }]}>←</Text>
                   <Text style={styles.debtPlayerName}>{group.player.name}</Text>
@@ -201,7 +201,8 @@ function createStyles(C) {
   debtNameRow:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
   debtArrow:     { fontSize: 15, color: C.red, fontWeight: '700' },
   debtPlayerName:{ fontSize: 16, fontWeight: '700', color: C.white },
-  debtMeta:      { fontSize: 12, color: C.muted },
+  debtMeta:      { fontSize: 12, color: C.gray },
+  flex1:         { flex: 1 },
 
   debtAmount:    { fontSize: 17, fontWeight: '800' },
 

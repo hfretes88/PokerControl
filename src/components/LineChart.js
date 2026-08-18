@@ -1,3 +1,7 @@
+/* eslint-disable react-native/no-inline-styles --
+   Este gráfico dibuja a mano cada punto/segmento/etiqueta en base a
+   coordenadas calculadas por dato (toX/toY, ángulos de segmento, etc.),
+   así que no hay forma de moverlas a un StyleSheet estático. */
 import React, { useRef, useEffect } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';

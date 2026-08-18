@@ -186,7 +186,7 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
                   ? <ActivityIndicator color={C.accent} size="small" />
                   : <Text style={styles.exportBtnIcon}>📤</Text>
                 }
-                <View style={{ flex: 1 }}>
+                <View style={styles.flex1}>
                   <Text style={styles.exportBtnLabel}>
                     {exporting ? 'Exportando...' : 'Exportar JSON'}
                   </Text>
@@ -206,7 +206,7 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
                   ? <ActivityIndicator color={C.accent} size="small" />
                   : <Text style={styles.exportBtnIcon}>📥</Text>
                 }
-                <View style={{ flex: 1 }}>
+                <View style={styles.flex1}>
                   <Text style={styles.exportBtnLabel}>
                     {importing ? 'Importando...' : 'Importar JSON'}
                   </Text>
@@ -227,7 +227,7 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
                 onPress={toggleTheme}
                 activeOpacity={0.8}>
                 <Text style={styles.exportBtnIcon}>{isDark ? '🌙' : '☀️'}</Text>
-                <View style={{ flex: 1 }}>
+                <View style={styles.flex1}>
                   <Text style={styles.exportBtnLabel}>
                     Tema {isDark ? 'oscuro' : 'claro'}
                   </Text>
@@ -304,11 +304,12 @@ function createStyles(C) {
   exportBtnDisabled: { opacity: 0.6 },
   exportBtnIcon:  { fontSize: 25 },
   exportBtnLabel: { fontSize: 17, fontWeight: '700', color: C.white, marginBottom: 2 },
-  exportBtnSub:   { fontSize: 12, color: C.muted },
+  exportBtnSub:   { fontSize: 12, color: C.gray },
+  flex1:          { flex: 1 },
   exportArrow:    { fontSize: 25, color: C.muted, fontWeight: '300' },
 
   version: {
-    fontSize: 12, color: C.muted,
+    fontSize: 12, color: C.gray,
     textAlign: 'center', marginTop: 8,
   },
   });

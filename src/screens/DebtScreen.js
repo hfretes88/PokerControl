@@ -77,7 +77,7 @@ export default function DebtScreen({ route }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
 
         {!allHaveResult && (
           <View style={styles.warnBox}>
@@ -112,7 +112,7 @@ export default function DebtScreen({ route }) {
           })}
 
         {/* Pagos pendientes con estado */}
-        <Text style={[styles.sectionTitle, { marginTop: 8 }]}>💳 Pagos</Text>
+        <Text style={[styles.sectionTitle, styles.mt8]}>💳 Pagos</Text>
 
         {debtsResult.length === 0 ? (
           <View style={styles.noDebts}>
@@ -166,7 +166,7 @@ export default function DebtScreen({ route }) {
                       </View>
                       {!isPaid && (
                         <Text style={styles.pendingLabel}>
-                          Pendiente: <Text style={{ color: C.red, fontWeight: '700' }}>{formatMoney(stored.pendingAmount)}</Text>
+                          Pendiente: <Text style={styles.pendingAmountBold}>{formatMoney(stored.pendingAmount)}</Text>
                         </Text>
                       )}
                     </View>
@@ -245,7 +245,7 @@ export default function DebtScreen({ route }) {
 
             <Text style={styles.fieldLabel}>NOTA (opcional)</Text>
             <TextInput
-              style={[styles.input, { marginBottom: 20 }]}
+              style={[styles.input, styles.mb20]}
               placeholder="Ej: efectivo, transferencia..."
               placeholderTextColor={C.muted}
               value={payNote}
@@ -275,6 +275,10 @@ function createStyles(C) {
   },
   warnText:     { fontSize: 15, color: C.accent, lineHeight: 18 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 10 },
+  scrollContent: { padding: 16 },
+  mt8:          { marginTop: 8 },
+  mb20:         { marginBottom: 20 },
+  pendingAmountBold: { color: C.red, fontWeight: '700' },
   row:          { flexDirection: 'row', alignItems: 'center' },
   avatar:       {
     width: 34, height: 34, borderRadius: 17,
@@ -315,7 +319,7 @@ function createStyles(C) {
   paymentCheck: { fontSize: 12, color: C.green },
   paymentAmt:   { fontSize: 13, fontWeight: '700', color: C.green },
   paymentNote:  { flex: 1, fontSize: 12, color: C.gray },
-  paymentDate:  { fontSize: 11, color: C.muted },
+  paymentDate:  { fontSize: 11, color: C.gray },
 
   payBtn:       {
     paddingVertical: 8, borderRadius: 8,
@@ -323,7 +327,7 @@ function createStyles(C) {
     alignItems: 'center',
   },
   payBtnText:   { fontSize: 15, color: C.accent, fontWeight: '700' },
-  noStoredNote: { fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 4 },
+  noStoredNote: { fontSize: 13, color: C.gray, textAlign: 'center', marginTop: 4 },
 
   modalOverlay: { flex: 1, backgroundColor: C.overlay, justifyContent: 'flex-end' },
   modalBox:     { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },

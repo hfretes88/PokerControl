@@ -71,7 +71,7 @@ export default function SeasonsScreen({ navigation }) {
         <View style={styles.headerBtns}>
           <TouchableOpacity
             onPress={() => navigation.navigate('Ranking')}
-            style={[styles.playersBtn, { marginRight: 8 }]}>
+            style={[styles.playersBtn, styles.mr8]}>
             <Text style={styles.playersBtnText}>🏆</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -85,11 +85,7 @@ export default function SeasonsScreen({ navigation }) {
       <FlatList
         data={seasons}
         keyExtractor={item => item.id}
-        contentContainerStyle={{
-          padding: 16,
-          paddingBottom: fabBottom + 70,
-          flexGrow: 1,
-        }}
+        contentContainerStyle={[styles.listContent, { paddingBottom: fabBottom + 70 }]}
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyCard}>
@@ -111,7 +107,7 @@ export default function SeasonsScreen({ navigation }) {
               activeOpacity={0.75}>
               <Card>
                 <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.flex1}>
                     <Text style={styles.sessionName}>{item.name}</Text>
                     <Text style={styles.sessionMeta}>
                       {new Date(item.createdAt).toLocaleDateString('es-AR')} – {closedLabel}
@@ -208,6 +204,9 @@ function createStyles(C) {
       borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,
     },
     playersBtnText: { fontSize: 15, color: C.white, fontWeight: '600' },
+    mr8: { marginRight: 8 },
+    listContent: { padding: 16, flexGrow: 1 },
+    flex1: { flex: 1 },
 
     sessionName: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 3 },
     sessionMeta: { fontSize: 13, color: C.gray },

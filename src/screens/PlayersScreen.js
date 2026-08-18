@@ -53,7 +53,7 @@ export default function PlayersScreen({ navigation }) {
       <FlatList
         data={players}
         keyExtractor={item => item.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: fabBottom + 70, flexGrow: 1 }}
+        contentContainerStyle={[styles.listContent, { paddingBottom: fabBottom + 70 }]}
         ListHeaderComponent={
           <>
             <TouchableOpacity
@@ -129,6 +129,7 @@ function createStyles(C) {
   return {
     ...createGlobalStyles(C),
     ...StyleSheet.create({
+      listContent: { padding: 16, flexGrow: 1 },
       statsBtn: {
         backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder,
         paddingHorizontal: 10, paddingVertical: 5, marginRight: 8,

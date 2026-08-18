@@ -121,7 +121,7 @@ export default function SessionScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}>
 
         {/* Resumen mesa */}
         <Card style={styles.summaryCard}>
@@ -172,8 +172,8 @@ export default function SessionScreen({ route, navigation }) {
                 {!isClosed && (
                   <TouchableOpacity
                     onPress={() => handleRemoveParticipant(p.playerId, p.name)}
-                    style={{ padding: 6 }}>
-                    <Text style={{ fontSize: 20, color: C.muted }}>✕</Text>
+                    style={styles.p6}>
+                    <Text style={styles.removeIcon}>✕</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -190,8 +190,8 @@ export default function SessionScreen({ route, navigation }) {
                   {!isClosed && (
                     <TouchableOpacity
                       onPress={() => handleRemoveBuy(p.playerId, i, b.amount)}
-                      style={{ padding: 4 }}>
-                      <Text style={{ fontSize: 16, color: C.muted }}>🗑</Text>
+                      style={styles.p4}>
+                      <Text style={styles.removeBuyIcon}>🗑</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -201,7 +201,7 @@ export default function SessionScreen({ route, navigation }) {
                 <Text style={styles.emptyBuys}>Sin compras aún</Text>
               )}
 
-              <View style={[styles.row, { marginTop: 6 }]}>
+              <View style={[styles.row, styles.mt6]}>
                 <Text style={styles.totalLabel}>Total invertido:</Text>
                 <Text style={styles.totalAmount}>{formatMoney(totalBought)}</Text>
               </View>
@@ -217,13 +217,13 @@ export default function SessionScreen({ route, navigation }) {
               <Divider />
 
               <View style={styles.row}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.flex1}>
                   <Text style={styles.label}>Al terminar tenía</Text>
                   <Text style={styles.finalAmount}>
                     {hasResult ? formatMoney(finalAmount) : '—'}
                   </Text>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
+                <View style={styles.alignEnd}>
                   <Text style={styles.label}>Balance</Text>
                   <BalanceBadge amount={hasResult ? balance : null} />
                 </View>
@@ -244,7 +244,7 @@ export default function SessionScreen({ route, navigation }) {
               )}
 
               {!isClosed && (
-                <View style={{ marginTop: 10 }}>
+                <View style={styles.mt10}>
                   <Btn
                     label={hasResult ? 'Editar resultado final' : 'Registrar resultado final'}
                     onPress={() => { setFinalModal(p); setFinalInput(hasResult ? String(finalAmount) : ''); }}
@@ -264,7 +264,7 @@ export default function SessionScreen({ route, navigation }) {
         )}
 
         {!isClosed && session.participants.length > 0 && (
-          <View style={{ marginTop: 8 }}>
+          <View style={styles.mt8}>
             <Btn label="🏁  Cerrar partida" onPress={handleCloseSession} color={C.red} />
           </View>
         )}
@@ -289,11 +289,11 @@ export default function SessionScreen({ route, navigation }) {
                     <Text style={styles.avatarTextSm}>{player.name[0].toUpperCase()}</Text>
                   </View>
                   <Text style={styles.playerOptionText}>{player.name}</Text>
-                  <Text style={{ fontSize: 22, color: C.accent }}>+</Text>
+                  <Text style={styles.addOptionPlus}>+</Text>
                 </TouchableOpacity>
               ))
             )}
-            <View style={{ marginTop: 12 }}>
+            <View style={styles.mt12}>
               <Btn label="Cerrar" onPress={() => setAddPlayerModal(false)} color={C.muted} small />
             </View>
           </View>
@@ -361,6 +361,18 @@ function createStyles(C) {
     modalTitle: { fontSize: 20, fontWeight: '800', color: C.white, marginBottom: 4 },
     summaryCard: { marginBottom: 12, alignItems: 'center' },
     sectionLabel: { fontSize: 12, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 4 },
+    scrollContent: { padding: 16 },
+    flex1: { flex: 1 },
+    alignEnd: { alignItems: 'flex-end' },
+    p4: { padding: 4 },
+    p6: { padding: 6 },
+    mt6: { marginTop: 6 },
+    mt8: { marginTop: 8 },
+    mt10: { marginTop: 10 },
+    mt12: { marginTop: 12 },
+    removeIcon: { fontSize: 20, color: C.muted },
+    removeBuyIcon: { fontSize: 16, color: C.muted },
+    addOptionPlus: { fontSize: 22, color: C.accent },
     bigPot: { fontSize: 43, fontWeight: '800', color: C.accent, marginBottom: 4 },
     metaText: { fontSize: 15, color: C.gray, flex: 1 },
     diffWarn: { fontSize: 13, color: C.red, fontWeight: '600' },
@@ -381,7 +393,7 @@ function createStyles(C) {
     buyRow: { marginBottom: 5, gap: 6 },
     buyText: { flex: 1, fontSize: 16, color: C.white },
     buyTime: { fontSize: 13, color: C.gray, marginRight: 8 },
-    emptyBuys: { fontSize: 15, color: C.muted, marginBottom: 6 },
+    emptyBuys: { fontSize: 15, color: C.gray, marginBottom: 6 },
     totalLabel: { flex: 1, fontSize: 15, color: C.gray },
     totalAmount: { fontSize: 17, fontWeight: '700', color: C.white },
     addBuyBtn: { marginTop: 8, paddingVertical: 6 },

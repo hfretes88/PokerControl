@@ -148,7 +148,7 @@ function PaymentModal({ debt, visible, onClose, onPaid }) {
 
           <Text style={styles.fieldLabel}>NOTA (opcional)</Text>
           <TextInput
-            style={[styles.input, { marginBottom: 20 }]}
+            style={[styles.input, styles.mb20]}
             placeholder="Ej: pagó en efectivo"
             placeholderTextColor={C.muted}
             value={note}
@@ -178,7 +178,7 @@ function DebtCard({ debt, onPay }) {
   return (
     <View style={styles.debtCard}>
       <View style={styles.debtCardHeader}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.flex1}>
           <Text style={styles.debtCardSession}>{debt.sessionName}</Text>
           <Text style={styles.debtCardDate}>
             {new Date(debt.createdAt).toLocaleDateString('es-AR', {
@@ -186,7 +186,7 @@ function DebtCard({ debt, onPay }) {
             })}
           </Text>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
+        <View style={styles.alignEnd}>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + '22', borderColor: statusColor + '55' }]}>
             <Text style={[styles.statusText, { color: statusColor }]}>
               {debtStatusLabel(debt.status)}
@@ -329,7 +329,7 @@ export default function PendingDebtsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
 
         {/* Botones de acción */}
         <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.8}>
@@ -372,7 +372,7 @@ export default function PendingDebtsScreen() {
                   {group.player.name[0].toUpperCase()}
                 </Text>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.flex1}>
                 <Text style={styles.groupName}>{group.player.name}</Text>
                 <Text style={styles.groupSub}>
                   {group.debts.length} deuda{group.debts.length > 1 ? 's' : ''} pendiente{group.debts.length > 1 ? 's' : ''}
@@ -408,6 +408,10 @@ export default function PendingDebtsScreen() {
 function createStyles(C) {
   return StyleSheet.create({
   container:     { flex: 1, backgroundColor: C.bg },
+  scrollContent: { padding: 16 },
+  flex1:         { flex: 1 },
+  alignEnd:      { alignItems: 'flex-end' },
+  mb20:          { marginBottom: 20 },
   loadingText:   { color: C.gray, textAlign: 'center', marginTop: 40, fontSize: 18 },
   empty:         { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyIcon:     { fontSize: 56, marginBottom: 16 },
@@ -434,7 +438,7 @@ function createStyles(C) {
   },
   reNetBtnIcon:      { fontSize: 18 },
   reNetBtnText:      { fontSize: 16, fontWeight: '700', color: C.accent },
-  reNetBtnTextDisabled: { fontSize: 15, fontWeight: '600', color: C.muted },
+  reNetBtnTextDisabled: { fontSize: 15, fontWeight: '600', color: C.gray },
   undoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: C.infoSoftBg, borderRadius: 12,
@@ -476,7 +480,7 @@ function createStyles(C) {
   paymentIcon:   { fontSize: 13, color: C.green },
   paymentAmount: { fontSize: 15, fontWeight: '700', color: C.green },
   paymentNote:   { flex: 1, fontSize: 13, color: C.gray },
-  paymentDate:   { fontSize: 12, color: C.muted },
+  paymentDate:   { fontSize: 12, color: C.gray },
   payBtn:        {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 8, borderRadius: 8,
