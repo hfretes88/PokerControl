@@ -8,7 +8,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 
 ## Features
 
-- **Seasons** — Group sessions into seasons. Starting a new season closes the current one automatically and resets the podium/stats to zero; only one season is active at a time. Debts and manual adjustments stay global across seasons.
+- **Seasons** — Group sessions into seasons. Starting a new season closes the current one automatically and resets the podium/stats to zero; only one season is active at a time. A closed season can be reopened as the active one, and an empty season (no sessions) can be deleted. Debts and manual adjustments stay global across seasons.
 - **Sessions** — Create and name poker sessions, set a starting buy-in per player, and close them when the game ends.
 - **Players** — Maintain a roster of recurring players reused across sessions.
 - **Buy-ins** — Record multiple chip purchases per player during a session, with timestamps.
