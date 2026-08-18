@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { getPlayerStats, deletePlayerAdjustment, getPlayers } from '../storage/storage';
+import { getPlayerStats, deletePlayerAdjustment, updatePlayerAdjustment, getPlayers } from '../storage/storage';
 import { getDebtsForPlayer, addManualDebt, deleteManualDebt, markAsPaid, MANUAL_DEBT_SESSION_ID } from '../storage/debts';
 import { Card, Btn, formatMoney } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
@@ -29,6 +29,11 @@ export default function StatsScreen({ route }) {
   const [otherPlayers, setOtherPlayers] = useState([]);
   const [adjCounterpartId, setAdjCounterpartId] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [editAdjModal, setEditAdjModal] = useState(false);
+  const [editAdjId, setEditAdjId] = useState(null);
+  const [editAdjType, setEditAdjType] = useState('cobro');
+  const [editAdjDescription, setEditAdjDescription] = useState('');
+  const [editAdjAmount, setEditAdjAmount] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,6 +130,29 @@ export default function StatsScreen({ route }) {
         onPress: async () => { await deletePlayerAdjustment(playerId, adjustmentId); load(); }
       }
     ]);
+  }
+
+  function openEditAdjModal(adj) {
+    setEditAdjId(adj.id);
+    setEditAdjType(adj.amount < 0 ? 'deuda' : 'cobro');
+    setEditAdjDescription(adj.description);
+    setEditAdjAmount(String(Math.abs(adj.amount)));
+    setEditAdjModal(true);
+  }
+
+  async function handleSaveEditAdj() {
+    const amount = parseFloat((editAdjAmount || '0').replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.');
+      return;
+    }
+    const signedAmount = editAdjType === 'deuda' ? -amount : amount;
+    await updatePlayerAdjustment(playerId, editAdjId, {
+      description: editAdjDescription,
+      amount: signedAmount,
+    });
+    setEditAdjModal(false);
+    load();
   }
 
   if (loading) {
@@ -240,6 +268,61 @@ export default function StatsScreen({ route }) {
             <View style={styles.modalBtns}>
               <Btn label="Cancelar" onPress={() => setAdjModal(false)} color={C.muted} small />
               <Btn label="Guardar" onPress={handleAddAdj} small />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    );
+  }
+
+  function editAdjModalView() {
+    return (
+      <Modal visible={editAdjModal} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+            <Text style={styles.modalTitle}>Editar ajuste</Text>
+
+            <View style={styles.adjTypeRow}>
+              <TouchableOpacity
+                style={[styles.adjTypeBtn, editAdjType === 'cobro' && styles.adjTypeBtnCobro]}
+                onPress={() => setEditAdjType('cobro')}>
+                <Text style={[styles.adjTypeTxt, editAdjType === 'cobro' && { color: C.green }]}>
+                  <Text style={styles.adjTypeEmoji}>💰 </Text>
+                  Me debe
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.adjTypeBtn, editAdjType === 'deuda' && styles.adjTypeBtnDeuda]}
+                onPress={() => setEditAdjType('deuda')}>
+                <Text style={[styles.adjTypeTxt, editAdjType === 'deuda' && { color: C.red }]}>
+                  <Text style={styles.adjTypeEmoji}>💸 </Text>
+                  Le debo
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>DESCRIPCIÓN</Text>
+            <TextInput
+              style={styles.input}
+              placeholderTextColor={C.muted}
+              value={editAdjDescription}
+              onChangeText={setEditAdjDescription}
+            />
+
+            <Text style={styles.fieldLabel}>MONTO</Text>
+            <TextInput
+              style={[styles.input, styles.amountInput]}
+              placeholderTextColor={C.muted}
+              value={editAdjAmount}
+              onChangeText={setEditAdjAmount}
+              keyboardType="decimal-pad"
+            />
+
+            <View style={styles.modalBtns}>
+              <Btn label="Cancelar" onPress={() => setEditAdjModal(false)} color={C.muted} small />
+              <Btn label="Guardar" onPress={handleSaveEditAdj} small />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -403,6 +486,9 @@ export default function StatsScreen({ route }) {
                   <Text style={[styles.adjAmount, { color: adj.amount >= 0 ? C.green : C.red }]}>
                     {adj.amount > 0 ? '+' : ''}{formatMoney(adj.amount)}
                   </Text>
+                  <TouchableOpacity onPress={() => openEditAdjModal(adj)} style={styles.delBtn}>
+                    <Text style={styles.delText}>✏️</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDeleteAdj(adj.id)} style={styles.delBtn}>
                     <Text style={styles.delText}>🗑</Text>
                   </TouchableOpacity>
@@ -450,6 +536,7 @@ export default function StatsScreen({ route }) {
       </ScrollView>
 
       {adjModalView()}
+      {editAdjModalView()}
     </SafeAreaView>
   );
 }

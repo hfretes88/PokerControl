@@ -293,6 +293,18 @@ export async function deletePlayerAdjustment(playerId, adjustmentId) {
   return players[idx];
 }
 
+export async function updatePlayerAdjustment(playerId, adjustmentId, { description, amount }) {
+  const players = await getPlayers();
+  const idx = players.findIndex(p => p.id === playerId);
+  if (idx === -1) return null;
+  const adjustments = players[idx].adjustments || [];
+  const adjIdx = adjustments.findIndex(a => a.id === adjustmentId);
+  if (adjIdx === -1) return null;
+  adjustments[adjIdx] = { ...adjustments[adjIdx], description: description.trim(), amount: Number(amount) };
+  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+  return players[idx];
+}
+
 /**
  * Stats de un jugador. Si se pasa seasonId, las partidas (history, wins,
  * bestGame, etc.) se limitan a esa temporada; los ajustes manuales son
