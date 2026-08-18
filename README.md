@@ -28,6 +28,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 | Layer | Technology |
 |---|---|
 | Framework | React Native 0.85 (CLI) |
+| Language | JavaScript, with `src/storage/` migrated to TypeScript (rest pending, incremental) |
 | Navigation | React Navigation — Native Stack |
 | Storage | AsyncStorage (100% local, no backend) |
 | Charts | Custom chart built with plain React Native views (no charting library) |
@@ -53,10 +54,13 @@ src/
 │   ├── PlayersScreen.js       # Player management
 │   ├── RankingScreen.js       # Leaderboard with podium, scoped to a season or all-time
 │   └── StatsScreen.js         # Per-player stats, balance chart, debt summary
-└── storage/
-    ├── storage.js             # AsyncStorage CRUD, balance/debt calculations, stats
-    ├── debts.js               # Debt lifecycle: generation, payments, status tracking
-    └── seasons.js             # Season lifecycle: creation, migration, active season
+└── storage/                   # TypeScript — the rest of the app is still plain JS,
+    ├── storage.ts             # being migrated incrementally starting with this layer
+    ├── debts.ts               # Debt lifecycle: generation, payments, status tracking
+    ├── seasons.ts             # Season lifecycle: creation, migration, active season
+    ├── lock.ts                # Per-key mutex serializing AsyncStorage read-modify-write ops
+    ├── id.ts                  # ID generation and safe JSON parsing
+    └── types.ts               # Shared domain types (Player, Session, Debt, Season, ...)
 ```
 
 ---
