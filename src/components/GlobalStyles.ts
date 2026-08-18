@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
+import type { Colors } from './UI';
 
-export function createGlobalStyles(C) {
+export function createGlobalStyles(C: Colors) {
   return StyleSheet.create({
     // ─── Layout ──────────────────────────────────────────────────────────────────
     container: { flex: 1, backgroundColor: C.bg },

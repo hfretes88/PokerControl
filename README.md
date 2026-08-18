@@ -28,7 +28,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 | Layer | Technology |
 |---|---|
 | Framework | React Native 0.85 (CLI) |
-| Language | JavaScript, with `src/storage/` migrated to TypeScript (rest pending, incremental) |
+| Language | JavaScript, with `src/storage/` and `src/components/` migrated to TypeScript (rest pending, incremental) |
 | Navigation | React Navigation — Native Stack |
 | Storage | AsyncStorage (100% local, no backend) |
 | Charts | Custom chart built with plain React Native views (no charting library) |
@@ -40,12 +40,13 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 
 ```
 src/
-├── components/
-│   ├── UI.js                  # Shared components (Card, Btn, BalanceBadge) and color tokens
-│   ├── GlobalStyles.js        # Shared StyleSheet tokens used across screens
-│   ├── InfoModal.js           # About modal with JSON export/import and theme toggle
-│   └── PlayerDebtsSection.js  # Reusable debt summary for StatsScreen
-├── screens/
+├── components/                 # TypeScript
+│   ├── UI.tsx                  # Shared components (Card, Btn, BalanceBadge) and color tokens
+│   ├── GlobalStyles.ts         # Shared StyleSheet tokens used across screens
+│   ├── InfoModal.tsx           # About modal with JSON export/import and theme toggle
+│   ├── LineChart.tsx           # Hand-drawn balance-over-time line chart
+│   └── PlayerDebtsSection.tsx  # Reusable debt summary for StatsScreen
+├── screens/                    # Still plain JS — next in line for the incremental migration
 │   ├── SeasonsScreen.js       # Season list and new season creation (initial screen)
 │   ├── HomeScreen.js          # Session list and new session creation, scoped to a season
 │   ├── SessionScreen.js       # Session detail: buy-ins, results, close
@@ -54,8 +55,8 @@ src/
 │   ├── PlayersScreen.js       # Player management
 │   ├── RankingScreen.js       # Leaderboard with podium, scoped to a season or all-time
 │   └── StatsScreen.js         # Per-player stats, balance chart, debt summary
-└── storage/                   # TypeScript — the rest of the app is still plain JS,
-    ├── storage.ts             # being migrated incrementally starting with this layer
+└── storage/                   # TypeScript
+    ├── storage.ts             # AsyncStorage CRUD, balance/debt calculations, stats
     ├── debts.ts               # Debt lifecycle: generation, payments, status tracking
     ├── seasons.ts             # Season lifecycle: creation, migration, active season
     ├── lock.ts                # Per-key mutex serializing AsyncStorage read-modify-write ops

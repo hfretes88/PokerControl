@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, ReactNode } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
   ScrollView, Share, Alert, ActivityIndicator, Platform
@@ -7,11 +7,30 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick, types, isErrorWithCode, errorCodes, saveDocuments } from '@react-native-documents/picker';
 import { useTheme } from '../theme/ThemeContext';
+import type { Colors } from './UI';
 import RNFS from 'react-native-fs';
+import type { Player, Session, Debt, Season } from '../storage/types';
 
 const APP_VERSION = '1.0.0';
 
-async function exportAllData() {
+interface BackupData {
+  poker_players: Player[];
+  poker_sessions: Session[];
+  poker_debts: Debt[];
+  poker_seasons: Season[];
+}
+
+interface BackupPayload {
+  exportedAt: string;
+  appVersion: string;
+  data: BackupData;
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+async function exportAllData(): Promise<BackupPayload> {
   // En lugar de getAllKeys + multiGet, leemos las claves conocidas directamente
   const [playersRaw, sessionsRaw, debtsRaw, seasonsRaw] = await Promise.all([
     AsyncStorage.getItem('poker_players'),
@@ -36,21 +55,29 @@ async function exportAllData() {
  * Valida que el JSON tenga la forma de un backup de Poker Control
  * antes de tocar el storage.
  */
-function isValidBackup(payload) {
-  const data = payload?.data;
+function isValidBackup(payload: unknown): payload is BackupPayload {
+  const data = (payload as { data?: unknown } | null)?.data;
   if (!data || typeof data !== 'object') return false;
   return ['poker_players', 'poker_sessions', 'poker_debts', 'poker_seasons']
-    .every(key => Array.isArray(data[key]));
+    .every(key => Array.isArray((data as Record<string, unknown>)[key]));
 }
 
-export default function InfoModal({ visible, onClose, title, children, onImported }) {
+interface InfoModalProps {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  children?: ReactNode;
+  onImported?: () => void;
+}
+
+export default function InfoModal({ visible, onClose, title, children, onImported }: InfoModalProps) {
   const insets = useSafeAreaInsets();
   const { C, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  async function applyImport(data) {
+  async function applyImport(data: BackupData) {
     setImporting(true);
     try {
       await AsyncStorage.setMany({
@@ -64,7 +91,7 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
       onClose();
       onImported?.();
     } catch (err) {
-      Alert.alert('Error al importar', err.message);
+      Alert.alert('Error al importar', getErrorMessage(err));
     } finally {
       setImporting(false);
     }
@@ -76,15 +103,15 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
       [file] = await pick({ type: [types.json] });
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error al importar', err.message);
+      Alert.alert('Error al importar', getErrorMessage(err));
       return;
     }
 
-    let payload;
+    let payload: unknown;
     try {
       const text = await (await fetch(file.uri)).text();
       payload = JSON.parse(text);
-    } catch (err) {
+    } catch {
       Alert.alert('Error al importar', 'No se pudo leer el archivo. ¿Es un JSON válido?');
       return;
     }
@@ -134,8 +161,8 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
 
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      if (err.message !== 'User did not share') {
-        Alert.alert('Error al exportar', err.message);
+      if (getErrorMessage(err) !== 'User did not share') {
+        Alert.alert('Error al exportar', getErrorMessage(err));
       }
     } finally {
       setExporting(false);
@@ -248,7 +275,7 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return StyleSheet.create({
   overlay: {
     flex: 1,
