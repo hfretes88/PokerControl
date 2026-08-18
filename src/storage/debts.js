@@ -12,6 +12,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { genId, safeParse } from './id';
+import { withLock } from './lock';
 
 const DEBTS_KEY   = 'poker_debts';
 const BACKUP_KEY  = 'poker_debts_backup';
@@ -166,39 +167,41 @@ function netDebts(allDebts) {
 // ─── Creación con neteo automático ───────────────────────────
 
 export async function generateDebtsFromSession(session, calcDebtsResult) {
-  const allDebts = await getAllDebts();
+  return withLock(DEBTS_KEY, async () => {
+    const allDebts = await getAllDebts();
 
-  // Evitar duplicados
-  const alreadyExists = allDebts.some(d => d.sessionId === session.id);
-  if (alreadyExists) return allDebts;
+    // Evitar duplicados
+    const alreadyExists = allDebts.some(d => d.sessionId === session.id);
+    if (alreadyExists) return allDebts;
 
-  // Al cerrar nueva partida → borrar backup (nueva reorganización disponible)
-  await clearBackup();
+    // Al cerrar nueva partida → borrar backup (nueva reorganización disponible)
+    await clearBackup();
 
-  if (calcDebtsResult.length === 0) {
-    const netted = netDebts(allDebts);
+    if (calcDebtsResult.length === 0) {
+      const netted = netDebts(allDebts);
+      await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
+      return netted;
+    }
+
+    const now = new Date().toISOString();
+    const newDebts = calcDebtsResult.map(debt => ({
+      id:             `${session.id}_${debt.fromId}_${debt.toId}_${genId()}`,
+      fromPlayer:     { id: debt.fromId, name: debt.from },
+      toPlayer:       { id: debt.toId,   name: debt.to },
+      sessionId:      session.id,
+      sessionName:    session.name,
+      originalAmount: debt.amount,
+      pendingAmount:  debt.amount,
+      status:         'pending',
+      payments:       [],
+      createdAt:      now,
+      isConsolidated: false,
+    }));
+
+    const netted = netDebts([...allDebts, ...newDebts]);
     await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
     return netted;
-  }
-
-  const now = new Date().toISOString();
-  const newDebts = calcDebtsResult.map(debt => ({
-    id:             `${session.id}_${debt.fromId}_${debt.toId}_${genId()}`,
-    fromPlayer:     { id: debt.fromId, name: debt.from },
-    toPlayer:       { id: debt.toId,   name: debt.to },
-    sessionId:      session.id,
-    sessionName:    session.name,
-    originalAmount: debt.amount,
-    pendingAmount:  debt.amount,
-    status:         'pending',
-    payments:       [],
-    createdAt:      now,
-    isConsolidated: false,
-  }));
-
-  const netted = netDebts([...allDebts, ...newDebts]);
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
-  return netted;
+  });
 }
 
 /**
@@ -208,25 +211,27 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
  * si ya había una deuda pendiente entre el mismo par.
  */
 export async function addManualDebt({ fromPlayer, toPlayer, amount, description }) {
-  const allDebts = await getAllDebts();
-  const now = new Date().toISOString();
-  const newDebt = {
-    id:             genId(),
-    fromPlayer,
-    toPlayer,
-    sessionId:      MANUAL_DEBT_SESSION_ID,
-    sessionName:    (description || '').trim() || 'Ajuste previo',
-    originalAmount: amount,
-    pendingAmount:  amount,
-    status:         'pending',
-    payments:       [],
-    createdAt:      now,
-    isConsolidated: false,
-  };
+  return withLock(DEBTS_KEY, async () => {
+    const allDebts = await getAllDebts();
+    const now = new Date().toISOString();
+    const newDebt = {
+      id:             genId(),
+      fromPlayer,
+      toPlayer,
+      sessionId:      MANUAL_DEBT_SESSION_ID,
+      sessionName:    (description || '').trim() || 'Ajuste previo',
+      originalAmount: amount,
+      pendingAmount:  amount,
+      status:         'pending',
+      payments:       [],
+      createdAt:      now,
+      isConsolidated: false,
+    };
 
-  const netted = netDebts([...allDebts, newDebt]);
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
-  return netted;
+    const netted = netDebts([...allDebts, newDebt]);
+    await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
+    return netted;
+  });
 }
 
 /**
@@ -235,16 +240,18 @@ export async function addManualDebt({ fromPlayer, toPlayer, amount, description 
  * plata de una deuda real de partida, y borrarla la perdería.
  */
 export async function deleteManualDebt(debtId) {
-  const allDebts = await getAllDebts();
-  const debt = allDebts.find(
-    d => d.id === debtId && d.sessionId === MANUAL_DEBT_SESSION_ID && !d.isConsolidated
-  );
-  if (!debt) {
-    throw new Error('No se puede borrar: ya se combinó con otra deuda entre estos jugadores.');
-  }
-  const updated = allDebts.filter(d => d.id !== debtId);
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(updated));
-  return updated;
+  return withLock(DEBTS_KEY, async () => {
+    const allDebts = await getAllDebts();
+    const debt = allDebts.find(
+      d => d.id === debtId && d.sessionId === MANUAL_DEBT_SESSION_ID && !d.isConsolidated
+    );
+    if (!debt) {
+      throw new Error('No se puede borrar: ya se combinó con otra deuda entre estos jugadores.');
+    }
+    const updated = allDebts.filter(d => d.id !== debtId);
+    await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(updated));
+    return updated;
+  });
 }
 
 /**
@@ -271,14 +278,16 @@ export async function hasDebtsToReorganize() {
  * Guarda backup antes de netear para poder deshacer.
  */
 export async function reNetAllDebts() {
-  const allDebts = await getAllDebts();
+  return withLock(DEBTS_KEY, async () => {
+    const allDebts = await getAllDebts();
 
-  // Guardar backup del estado actual antes de netear
-  await saveBackup(allDebts);
+    // Guardar backup del estado actual antes de netear
+    await saveBackup(allDebts);
 
-  const netted = netDebts(allDebts);
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
-  return netted;
+    const netted = netDebts(allDebts);
+    await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
+    return netted;
+  });
 }
 
 /**
@@ -286,69 +295,77 @@ export async function reNetAllDebts() {
  * Solo funciona si no hay pagos sobre deudas consolidadas.
  */
 export async function undoReNet() {
-  const { canUndo, reason } = await canUndoReNet();
-  if (!canUndo) {
-    if (reason === 'has_payments') {
-      throw new Error('No se puede deshacer: ya hay pagos registrados sobre las deudas reorganizadas.');
+  return withLock(DEBTS_KEY, async () => {
+    const { canUndo, reason } = await canUndoReNet();
+    if (!canUndo) {
+      if (reason === 'has_payments') {
+        throw new Error('No se puede deshacer: ya hay pagos registrados sobre las deudas reorganizadas.');
+      }
+      throw new Error('No hay reorganización para deshacer.');
     }
-    throw new Error('No hay reorganización para deshacer.');
-  }
 
-  const backup = await getBackup();
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(backup.debts));
-  await clearBackup();
-  return backup.debts;
+    const backup = await getBackup();
+    await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(backup.debts));
+    await clearBackup();
+    return backup.debts;
+  });
 }
 
 // ─── Pagos ────────────────────────────────────────────────────
 
 export async function registerPayment(debtId, amount, note = '') {
-  const debts = await getAllDebts();
-  const idx   = debts.findIndex(d => d.id === debtId);
-  if (idx === -1) throw new Error('Deuda no encontrada');
+  return withLock(DEBTS_KEY, async () => {
+    const debts = await getAllDebts();
+    const idx   = debts.findIndex(d => d.id === debtId);
+    if (idx === -1) throw new Error('Deuda no encontrada');
 
-  const debt    = debts[idx];
-  const paid    = Math.min(amount, debt.pendingAmount);
-  const pending = debt.pendingAmount - paid;
+    const debt    = debts[idx];
+    const paid    = Math.min(amount, debt.pendingAmount);
+    const pending = debt.pendingAmount - paid;
 
-  debt.payments.push({
-    amount: paid,
-    date:   new Date().toISOString(),
-    note:   note.trim(),
+    debt.payments.push({
+      amount: paid,
+      date:   new Date().toISOString(),
+      note:   note.trim(),
+    });
+
+    debt.pendingAmount = pending;
+    debt.status = pending <= 0 ? 'paid' : 'partial';
+
+    debts[idx] = debt;
+    await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(debts));
+    return debts[idx];
   });
-
-  debt.pendingAmount = pending;
-  debt.status = pending <= 0 ? 'paid' : 'partial';
-
-  debts[idx] = debt;
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(debts));
-  return debts[idx];
 }
 
 export async function markAsPaid(debtId) {
-  const debts = await getAllDebts();
-  const idx   = debts.findIndex(d => d.id === debtId);
-  if (idx === -1) throw new Error('Deuda no encontrada');
+  return withLock(DEBTS_KEY, async () => {
+    const debts = await getAllDebts();
+    const idx   = debts.findIndex(d => d.id === debtId);
+    if (idx === -1) throw new Error('Deuda no encontrada');
 
-  const debt = debts[idx];
-  if (debt.pendingAmount > 0) {
-    debt.payments.push({
-      amount: debt.pendingAmount,
-      date:   new Date().toISOString(),
-      note:   'Saldado',
-    });
-    debt.pendingAmount = 0;
-  }
-  debt.status = 'paid';
-  debts[idx]  = debt;
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(debts));
-  return debts[idx];
+    const debt = debts[idx];
+    if (debt.pendingAmount > 0) {
+      debt.payments.push({
+        amount: debt.pendingAmount,
+        date:   new Date().toISOString(),
+        note:   'Saldado',
+      });
+      debt.pendingAmount = 0;
+    }
+    debt.status = 'paid';
+    debts[idx]  = debt;
+    await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(debts));
+    return debts[idx];
+  });
 }
 
 export async function deleteDebtsForSession(sessionId) {
-  const debts   = await getAllDebts();
-  const updated = debts.filter(d => d.sessionId !== sessionId);
-  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(updated));
+  return withLock(DEBTS_KEY, async () => {
+    const debts   = await getAllDebts();
+    const updated = debts.filter(d => d.sessionId !== sessionId);
+    await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(updated));
+  });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────

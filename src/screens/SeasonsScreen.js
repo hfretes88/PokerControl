@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, Modal, KeyboardAvoidingView, Platform, StatusBar
+  TextInput, Modal, KeyboardAvoidingView, Platform, StatusBar, Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessions } from '../storage/storage';
-import { getSeasons, createSeason } from '../storage/seasons';
+import { getSeasons, createSeason, deleteSeason, reopenSeason } from '../storage/seasons';
 import { Card, Btn } from '../components/UI';
 import InfoModal from '../components/InfoModal';
 import { createGlobalStyles } from '../components/GlobalStyles';
@@ -53,6 +53,45 @@ export default function SeasonsScreen({ navigation }) {
     navigation.navigate('SessionsList', { seasonId: newSeason.id, seasonName: newSeason.name });
   }
 
+  function handleDeleteSeason(season) {
+    Alert.alert(
+      'Borrar temporada',
+      `¿Borrar "${season.name}"? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Borrar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteSeason(season.id);
+              load();
+            } catch (e) {
+              Alert.alert('No se pudo borrar', e.message);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  function handleReopenSeason(season) {
+    Alert.alert(
+      'Reabrir temporada',
+      `"${season.name}" va a pasar a ser la temporada activa${activeSeason ? ` y se va a cerrar "${activeSeason.name}"` : ''}.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Reabrir',
+          onPress: async () => {
+            await reopenSeason(season.id);
+            load();
+          },
+        },
+      ]
+    );
+  }
+
   const activeSeason = seasons.find(s => s.status === 'active') || null;
   const headerPaddingTop = insets.top + 12;
   const fabBottom = insets.bottom + 20;
@@ -71,7 +110,7 @@ export default function SeasonsScreen({ navigation }) {
         <View style={styles.headerBtns}>
           <TouchableOpacity
             onPress={() => navigation.navigate('Ranking')}
-            style={[styles.playersBtn, { marginRight: 8 }]}>
+            style={[styles.playersBtn, styles.mr8]}>
             <Text style={styles.playersBtnText}>🏆</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -85,11 +124,7 @@ export default function SeasonsScreen({ navigation }) {
       <FlatList
         data={seasons}
         keyExtractor={item => item.id}
-        contentContainerStyle={{
-          padding: 16,
-          paddingBottom: fabBottom + 70,
-          flexGrow: 1,
-        }}
+        contentContainerStyle={[styles.listContent, { paddingBottom: fabBottom + 70 }]}
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyCard}>
@@ -111,19 +146,39 @@ export default function SeasonsScreen({ navigation }) {
               activeOpacity={0.75}>
               <Card>
                 <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.flex1}>
                     <Text style={styles.sessionName}>{item.name}</Text>
                     <Text style={styles.sessionMeta}>
                       {new Date(item.createdAt).toLocaleDateString('es-AR')} – {closedLabel}
                       {'  ·  '}{count} partida{count === 1 ? '' : 's'}
                     </Text>
                   </View>
-                  <View style={[styles.statusBadge,
-                    item.status === 'closed' ? styles.closedBadge : styles.activeBadge]}>
-                    <Text style={[styles.statusText,
-                      { color: item.status === 'closed' ? C.warning : C.green }]}>
-                      {item.status === 'closed' ? 'Cerrada' : '● Activa'}
-                    </Text>
+                  <View style={styles.rowRight}>
+                    <View style={[styles.statusBadge,
+                      item.status === 'closed' ? styles.closedBadge : styles.activeBadge]}>
+                      <Text style={[styles.statusText,
+                        { color: item.status === 'closed' ? C.warning : C.green }]}>
+                        {item.status === 'closed' ? 'Cerrada' : '● Activa'}
+                      </Text>
+                    </View>
+                    <View style={styles.rowActions}>
+                      {item.status === 'closed' && (
+                        <TouchableOpacity
+                          onPress={() => handleReopenSeason(item)}
+                          hitSlop={8}
+                          style={styles.rowActionBtn}>
+                          <Text style={styles.rowActionIcon}>↺</Text>
+                        </TouchableOpacity>
+                      )}
+                      {count === 0 && (
+                        <TouchableOpacity
+                          onPress={() => handleDeleteSeason(item)}
+                          hitSlop={8}
+                          style={styles.rowActionBtn}>
+                          <Text style={styles.rowActionIconDanger}>🗑</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 </View>
               </Card>
@@ -208,13 +263,21 @@ function createStyles(C) {
       borderRadius: 20, borderWidth: 1, borderColor: C.cardBorder,
     },
     playersBtnText: { fontSize: 15, color: C.white, fontWeight: '600' },
+    mr8: { marginRight: 8 },
+    listContent: { padding: 16, flexGrow: 1 },
+    flex1: { flex: 1 },
 
     sessionName: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 3 },
     sessionMeta: { fontSize: 13, color: C.gray },
+    rowRight: { alignItems: 'flex-end', gap: 6 },
     statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     activeBadge: { backgroundColor: C.infoSoftBg },
     closedBadge: { backgroundColor: C.neutralSoftBg },
     statusText: { fontSize: 12, fontWeight: '700' },
+    rowActions: { flexDirection: 'row', gap: 4 },
+    rowActionBtn: { padding: 4 },
+    rowActionIcon: { fontSize: 16, color: C.gray },
+    rowActionIconDanger: { fontSize: 14, color: C.red },
 
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
     emptyCard: {

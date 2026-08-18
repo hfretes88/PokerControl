@@ -9,6 +9,7 @@ import {
   getPlayerStats,
   getGlobalRanking,
   addPlayerAdjustment,
+  updatePlayerAdjustment,
 } from '../storage';
 
 const SEASON_A = 'season-a';
@@ -83,6 +84,28 @@ describe('getPlayerStats con seasonId', () => {
     expect(statsA).not.toBeNull();
     expect(statsA.totalGames).toBe(0);
     expect(statsA.totalBalance).toBe(40);
+  });
+});
+
+describe('updatePlayerAdjustment', () => {
+  it('actualiza descripción y monto de un ajuste existente', async () => {
+    const ana = await savePlayer('Ana');
+    const updated = await addPlayerAdjustment(ana.id, { description: 'Deuda vieja', amount: -20 });
+    const adjId = updated.adjustments[0].id;
+
+    await updatePlayerAdjustment(ana.id, adjId, { description: 'Deuda corregida', amount: 30 });
+
+    const stats = await getPlayerStats(ana.id);
+    expect(stats.adjustments).toHaveLength(1);
+    expect(stats.adjustments[0].description).toBe('Deuda corregida');
+    expect(stats.adjustments[0].amount).toBe(30);
+    expect(stats.adjustmentsTotal).toBe(30);
+  });
+
+  it('no rompe nada si el ajuste no existe', async () => {
+    const ana = await savePlayer('Ana');
+    const result = await updatePlayerAdjustment(ana.id, 'inexistente', { description: 'x', amount: 1 });
+    expect(result).toBeNull();
   });
 });
 

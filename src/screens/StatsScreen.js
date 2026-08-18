@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { getPlayerStats, deletePlayerAdjustment, getPlayers } from '../storage/storage';
+import { getPlayerStats, deletePlayerAdjustment, updatePlayerAdjustment, getPlayers } from '../storage/storage';
 import { getDebtsForPlayer, addManualDebt, deleteManualDebt, markAsPaid, MANUAL_DEBT_SESSION_ID } from '../storage/debts';
 import { Card, Btn, formatMoney } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
@@ -29,6 +29,11 @@ export default function StatsScreen({ route }) {
   const [otherPlayers, setOtherPlayers] = useState([]);
   const [adjCounterpartId, setAdjCounterpartId] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [editAdjModal, setEditAdjModal] = useState(false);
+  const [editAdjId, setEditAdjId] = useState(null);
+  const [editAdjType, setEditAdjType] = useState('cobro');
+  const [editAdjDescription, setEditAdjDescription] = useState('');
+  const [editAdjAmount, setEditAdjAmount] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +132,29 @@ export default function StatsScreen({ route }) {
     ]);
   }
 
+  function openEditAdjModal(adj) {
+    setEditAdjId(adj.id);
+    setEditAdjType(adj.amount < 0 ? 'deuda' : 'cobro');
+    setEditAdjDescription(adj.description);
+    setEditAdjAmount(String(Math.abs(adj.amount)));
+    setEditAdjModal(true);
+  }
+
+  async function handleSaveEditAdj() {
+    const amount = parseFloat((editAdjAmount || '0').replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.');
+      return;
+    }
+    const signedAmount = editAdjType === 'deuda' ? -amount : amount;
+    await updatePlayerAdjustment(playerId, editAdjId, {
+      description: editAdjDescription,
+      amount: signedAmount,
+    });
+    setEditAdjModal(false);
+    load();
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -199,7 +227,7 @@ export default function StatsScreen({ route }) {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.counterpartList}
-                contentContainerStyle={{ gap: 8 }}>
+                contentContainerStyle={styles.gap8}>
                 {otherPlayers.map(p => {
                   const selected = p.id === adjCounterpartId;
                   return (
@@ -247,9 +275,64 @@ export default function StatsScreen({ route }) {
     );
   }
 
+  function editAdjModalView() {
+    return (
+      <Modal visible={editAdjModal} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+            <Text style={styles.modalTitle}>Editar ajuste</Text>
+
+            <View style={styles.adjTypeRow}>
+              <TouchableOpacity
+                style={[styles.adjTypeBtn, editAdjType === 'cobro' && styles.adjTypeBtnCobro]}
+                onPress={() => setEditAdjType('cobro')}>
+                <Text style={[styles.adjTypeTxt, editAdjType === 'cobro' && { color: C.green }]}>
+                  <Text style={styles.adjTypeEmoji}>💰 </Text>
+                  Me debe
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.adjTypeBtn, editAdjType === 'deuda' && styles.adjTypeBtnDeuda]}
+                onPress={() => setEditAdjType('deuda')}>
+                <Text style={[styles.adjTypeTxt, editAdjType === 'deuda' && { color: C.red }]}>
+                  <Text style={styles.adjTypeEmoji}>💸 </Text>
+                  Le debo
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>DESCRIPCIÓN</Text>
+            <TextInput
+              style={styles.input}
+              placeholderTextColor={C.muted}
+              value={editAdjDescription}
+              onChangeText={setEditAdjDescription}
+            />
+
+            <Text style={styles.fieldLabel}>MONTO</Text>
+            <TextInput
+              style={[styles.input, styles.amountInput]}
+              placeholderTextColor={C.muted}
+              value={editAdjAmount}
+              onChangeText={setEditAdjAmount}
+              keyboardType="decimal-pad"
+            />
+
+            <View style={styles.modalBtns}>
+              <Btn label="Cancelar" onPress={() => setEditAdjModal(false)} color={C.muted} small />
+              <Btn label="Guardar" onPress={handleSaveEditAdj} small />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
         {/* Resumen global */}
         <Card style={styles.heroCard}>
           <Text style={styles.heroLabel}>{heroLabel}</Text>
@@ -320,7 +403,7 @@ export default function StatsScreen({ route }) {
         {/* Mejor y peor partida */}
         {stats.bestGame && stats.worstGame && (
           <View style={styles.row}>
-            <Card style={[styles.halfCard, { marginRight: 6 }]}>
+            <Card style={[styles.halfCard, styles.mr6]}>
               <Text style={styles.halfLabel}>🏆 Mejor</Text>
               <Text style={[styles.halfAmount, { color: C.green }]}>
                 {stats.bestGame.balance > 0 ? '+' : ''}{formatMoney(stats.bestGame.balance)}
@@ -329,7 +412,7 @@ export default function StatsScreen({ route }) {
                 {stats.bestGame.sessionName}
               </Text>
             </Card>
-            <Card style={[styles.halfCard, { marginLeft: 6 }]}>
+            <Card style={[styles.halfCard, styles.ml6]}>
               <Text style={styles.halfLabel}>💸 Peor</Text>
               <Text style={[styles.halfAmount, { color: C.red }]}>
                 {formatMoney(stats.worstGame.balance)}
@@ -343,7 +426,7 @@ export default function StatsScreen({ route }) {
 
         {/* Deudas previas (con contraparte) */}
         <View style={styles.adjSectionHeader}>
-          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Deudas previas</Text>
+          <Text style={[styles.sectionTitle, styles.mb0]}>Deudas previas</Text>
           <TouchableOpacity onPress={openAdjModal} style={styles.adjAddBtn}>
             <Text style={styles.adjAddText}>+ Agregar</Text>
           </TouchableOpacity>
@@ -358,7 +441,7 @@ export default function StatsScreen({ route }) {
             return (
               <Card key={debt.id}>
                 <View style={styles.adjRow}>
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.flex1}>
                     <Text style={styles.adjDesc}>
                       {iAmOwed ? `${counterpartName} le debe` : `Le debe a ${counterpartName}`}
                     </Text>
@@ -392,7 +475,7 @@ export default function StatsScreen({ route }) {
             {stats.adjustments.map(adj => (
               <Card key={adj.id}>
                 <View style={styles.adjRow}>
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.flex1}>
                     <Text style={styles.adjDesc}>{adj.description}</Text>
                     <Text style={styles.histDate}>
                       {new Date(adj.date).toLocaleDateString('es-AR', {
@@ -403,6 +486,9 @@ export default function StatsScreen({ route }) {
                   <Text style={[styles.adjAmount, { color: adj.amount >= 0 ? C.green : C.red }]}>
                     {adj.amount > 0 ? '+' : ''}{formatMoney(adj.amount)}
                   </Text>
+                  <TouchableOpacity onPress={() => openEditAdjModal(adj)} style={styles.delBtn}>
+                    <Text style={styles.delText}>✏️</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDeleteAdj(adj.id)} style={styles.delBtn}>
                     <Text style={styles.delText}>🗑</Text>
                   </TouchableOpacity>
@@ -423,7 +509,7 @@ export default function StatsScreen({ route }) {
             {stats.history.map(h => (
               <Card key={h.sessionId}>
                 <View style={styles.histRow}>
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.flex1}>
                     <Text style={styles.histSession} numberOfLines={1}>{h.sessionName}</Text>
                     <Text style={styles.histDate}>
                       {new Date(h.date).toLocaleDateString('es-AR', {
@@ -431,7 +517,7 @@ export default function StatsScreen({ route }) {
                       })}
                     </Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
+                  <View style={styles.alignEnd}>
                     <Text style={[styles.histBalance, {
                       color: h.balance > 0 ? C.green : h.balance < 0 ? C.red : C.gray
                     }]}>
@@ -450,6 +536,7 @@ export default function StatsScreen({ route }) {
       </ScrollView>
 
       {adjModalView()}
+      {editAdjModalView()}
     </SafeAreaView>
   );
 }
@@ -459,6 +546,13 @@ function createStyles(C) {
   ...createGlobalStyles(C),
   ...StyleSheet.create({
     heroCard: { alignItems: 'center', marginBottom: 12 },
+    scrollContent: { padding: 16 },
+    flex1: { flex: 1 },
+    alignEnd: { alignItems: 'flex-end' },
+    gap8: { gap: 8 },
+    mr6: { marginRight: 6 },
+    ml6: { marginLeft: 6 },
+    mb0: { marginBottom: 0 },
     heroLabel: { fontSize: 12, fontWeight: '700', color: C.gray, letterSpacing: 1, marginBottom: 6 },
     heroAmount: { fontSize: 47, fontWeight: '800', marginBottom: 8 },
     adjBreakdown: { fontSize: 12, color: C.gray, marginBottom: 14 },
@@ -471,7 +565,7 @@ function createStyles(C) {
     halfCard: { flex: 1, marginBottom: 12 },
     halfLabel: { fontSize: 13, color: C.gray, marginBottom: 6 },
     halfAmount: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
-    halfSession: { fontSize: 12, color: C.muted },
+    halfSession: { fontSize: 12, color: C.gray },
     chartCard: { marginBottom: 12 },
     chartTitle: { fontSize: 16, fontWeight: '700', color: C.white, marginBottom: 2 },
     chartSubtitle: { fontSize: 12, color: C.gray, marginBottom: 4 },
@@ -480,14 +574,14 @@ function createStyles(C) {
     histSession: { fontSize: 16, fontWeight: '600', color: C.white, marginBottom: 3 },
     histDate: { fontSize: 13, color: C.gray },
     histBalance: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
-    histDetail: { fontSize: 12, color: C.muted },
+    histDetail: { fontSize: 12, color: C.gray },
 
     // Ajustes
     adjSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 10 },
     adjAddBtn: { backgroundColor: C.bg, borderRadius: 8, borderWidth: 1, borderColor: C.cardBorder, paddingHorizontal: 12, paddingVertical: 5 },
     adjAddBtnEmpty: { marginTop: 20, borderWidth: 1, borderColor: C.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
     adjAddText: { fontSize: 15, color: C.accent, fontWeight: '700' },
-    adjEmpty: { fontSize: 15, color: C.muted, marginBottom: 12 },
+    adjEmpty: { fontSize: 15, color: C.gray, marginBottom: 12 },
     adjRow: { flexDirection: 'row', alignItems: 'center' },
     adjDesc: { fontSize: 16, fontWeight: '600', color: C.white, marginBottom: 3 },
     adjAmount: { fontSize: 18, fontWeight: '700', marginRight: 4 },
@@ -497,7 +591,7 @@ function createStyles(C) {
     adjTypeBtnDeuda: { borderColor: C.red, backgroundColor: C.dangerSoftBg },
     adjTypeTxt: { fontSize: 16, fontWeight: '700', color: C.gray },
     adjTypeEmoji: { fontWeight: '400' },
-    noPlayersText: { fontSize: 14, color: C.muted, marginBottom: 12 },
+    noPlayersText: { fontSize: 14, color: C.gray, marginBottom: 12 },
     counterpartList: { marginBottom: 16 },
     counterpartChip: {
       paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,

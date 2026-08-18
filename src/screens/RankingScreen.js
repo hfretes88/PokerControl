@@ -58,7 +58,7 @@ export default function RankingScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
 
         {/* Podio */}
         {podium.length >= 2 && (
@@ -68,7 +68,7 @@ export default function RankingScreen({ navigation, route }) {
               {/* orden visual: 2do - 1ro - 3ro */}
               {[1, 0, 2].map(i => {
                 const p = podium[i];
-                if (!p) return <View key={i} style={{ flex: 1 }} />;
+                if (!p) return <View key={i} style={styles.flex1} />;
                 const isFirst = i === 0;
                 const balance = seasonId ? p.sessionBalance : p.totalBalance;
                 return (
@@ -123,7 +123,7 @@ export default function RankingScreen({ navigation, route }) {
                     {p.name[0].toUpperCase()}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={styles.flex1}>
                   <Text style={styles.playerName}>{p.name}</Text>
                   <View style={styles.metaRow}>
                     <Text style={styles.metaText}>{p.totalGames} partidas</Text>
@@ -131,7 +131,7 @@ export default function RankingScreen({ navigation, route }) {
                     <Text style={[styles.metaText, { color: C.accent }]}>{p.winRate}% win</Text>
                     <Text style={styles.metaDot}>·</Text>
                     <Text style={[styles.metaText, { color: C.green }]}>{p.wins}G</Text>
-                    <Text style={[styles.metaText, { color: C.muted }]}>/{p.losses}P</Text>
+                    <Text style={styles.metaText}>/{p.losses}P</Text>
                   </View>
                 </View>
 
@@ -156,6 +156,8 @@ function createStyles(C) {
   ...createGlobalStyles(C),
   ...StyleSheet.create({
     sectionTitle: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 12, marginTop: 4 },
+    scrollContent: { padding: 16 },
+    flex1: { flex: 1 },
 
     // Podio
     podiumWrapper: { marginBottom: 24 },

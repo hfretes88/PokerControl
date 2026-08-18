@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateDebtsFromSession, deleteDebtsForSession, getAllDebts, MANUAL_DEBT_SESSION_ID } from './debts';
 import { genId, safeParse } from './id';
+import { withLock } from './lock';
 
 const KEYS = {
   SESSIONS: 'poker_sessions',
@@ -15,21 +16,25 @@ export async function getPlayers() {
 }
 
 export async function savePlayer(name) {
-  const players = await getPlayers();
-  const newPlayer = {
-    id: genId(),
-    name: name.trim(),
-    createdAt: new Date().toISOString(),
-  };
-  players.push(newPlayer);
-  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
-  return newPlayer;
+  return withLock(KEYS.PLAYERS, async () => {
+    const players = await getPlayers();
+    const newPlayer = {
+      id: genId(),
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    players.push(newPlayer);
+    await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+    return newPlayer;
+  });
 }
 
 export async function deletePlayer(playerId) {
-  const players = await getPlayers();
-  const updated = players.filter(p => p.id !== playerId);
-  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(updated));
+  return withLock(KEYS.PLAYERS, async () => {
+    const players = await getPlayers();
+    const updated = players.filter(p => p.id !== playerId);
+    await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(updated));
+  });
 }
 
 // ─── Sesiones ────────────────────────────────────────────────────────────────
@@ -45,18 +50,20 @@ export async function getSession(sessionId) {
 }
 
 export async function createSession(name, seasonId) {
-  const sessions = await getSessions();
-  const newSession = {
-    id: genId(),
-    name: name.trim(),
-    createdAt: new Date().toISOString(),
-    status: 'active',
-    seasonId,
-    participants: [],
-  };
-  sessions.unshift(newSession);
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  return newSession;
+  return withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const newSession = {
+      id: genId(),
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+      status: 'active',
+      seasonId,
+      participants: [],
+    };
+    sessions.unshift(newSession);
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return newSession;
+  });
 }
 
 /**
@@ -64,28 +71,30 @@ export async function createSession(name, seasonId) {
  * entries: [{ player: { id, name }, amount: number }]
  */
 export async function createSessionWithBuys(name, entries, seasonId) {
-  const sessions = await getSessions();
-  const now = new Date().toISOString();
-  const participants = entries
-    .filter(e => e.player && e.amount > 0)
-    .map(e => ({
-      playerId: e.player.id,
-      name: e.player.name,
-      buys: [{ amount: Number(e.amount), timestamp: now }],
-      finalAmount: null,
-    }));
+  return withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const now = new Date().toISOString();
+    const participants = entries
+      .filter(e => e.player && e.amount > 0)
+      .map(e => ({
+        playerId: e.player.id,
+        name: e.player.name,
+        buys: [{ amount: Number(e.amount), timestamp: now }],
+        finalAmount: null,
+      }));
 
-  const newSession = {
-    id: genId(),
-    name: name.trim(),
-    createdAt: now,
-    status: 'active',
-    seasonId,
-    participants,
-  };
-  sessions.unshift(newSession);
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  return newSession;
+    const newSession = {
+      id: genId(),
+      name: name.trim(),
+      createdAt: now,
+      status: 'active',
+      seasonId,
+      participants,
+    };
+    sessions.unshift(newSession);
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return newSession;
+  });
 }
 
 export async function getSessionsBySeason(seasonId) {
@@ -94,85 +103,101 @@ export async function getSessionsBySeason(seasonId) {
 }
 
 export async function closeSession(sessionId) {
-  const sessions = await getSessions();
-  const idx = sessions.findIndex(s => s.id === sessionId);
-  if (idx === -1) return null;
-  sessions[idx].status = 'closed';
-  sessions[idx].closedAt = new Date().toISOString();
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  const debts = calcDebts(sessions[idx]);
-  await generateDebtsFromSession(sessions[idx], debts);
-  return sessions[idx];
+  const closedSession = await withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const idx = sessions.findIndex(s => s.id === sessionId);
+    if (idx === -1) return null;
+    sessions[idx].status = 'closed';
+    sessions[idx].closedAt = new Date().toISOString();
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return sessions[idx];
+  });
+  if (!closedSession) return null;
+  const debts = calcDebts(closedSession);
+  await generateDebtsFromSession(closedSession, debts);
+  return closedSession;
 }
 
 export async function deleteSession(sessionId) {
-  const sessions = await getSessions();
-  const updated = sessions.filter(s => s.id !== sessionId);
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(updated));
+  await withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const updated = sessions.filter(s => s.id !== sessionId);
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(updated));
+  });
   await deleteDebtsForSession(sessionId);
 }
 
 // ─── Participantes ────────────────────────────────────────────────────────────
 
 export async function addParticipant(sessionId, player) {
-  const sessions = await getSessions();
-  const idx = sessions.findIndex(s => s.id === sessionId);
-  if (idx === -1) return null;
-  const alreadyIn = sessions[idx].participants.some(p => p.playerId === player.id);
-  if (alreadyIn) return sessions[idx];
-  sessions[idx].participants.push({
-    playerId: player.id,
-    name: player.name,
-    buys: [],
-    finalAmount: null,
+  return withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const idx = sessions.findIndex(s => s.id === sessionId);
+    if (idx === -1) return null;
+    const alreadyIn = sessions[idx].participants.some(p => p.playerId === player.id);
+    if (alreadyIn) return sessions[idx];
+    sessions[idx].participants.push({
+      playerId: player.id,
+      name: player.name,
+      buys: [],
+      finalAmount: null,
+    });
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return sessions[idx];
   });
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  return sessions[idx];
 }
 
 export async function removeParticipant(sessionId, playerId) {
-  const sessions = await getSessions();
-  const idx = sessions.findIndex(s => s.id === sessionId);
-  if (idx === -1) return null;
-  sessions[idx].participants = sessions[idx].participants.filter(p => p.playerId !== playerId);
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  return sessions[idx];
+  return withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const idx = sessions.findIndex(s => s.id === sessionId);
+    if (idx === -1) return null;
+    sessions[idx].participants = sessions[idx].participants.filter(p => p.playerId !== playerId);
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return sessions[idx];
+  });
 }
 
 export async function addBuy(sessionId, playerId, amount) {
-  const sessions = await getSessions();
-  const sIdx = sessions.findIndex(s => s.id === sessionId);
-  if (sIdx === -1) return null;
-  const pIdx = sessions[sIdx].participants.findIndex(p => p.playerId === playerId);
-  if (pIdx === -1) return null;
-  sessions[sIdx].participants[pIdx].buys.push({
-    amount: Number(amount),
-    timestamp: new Date().toISOString(),
+  return withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const sIdx = sessions.findIndex(s => s.id === sessionId);
+    if (sIdx === -1) return null;
+    const pIdx = sessions[sIdx].participants.findIndex(p => p.playerId === playerId);
+    if (pIdx === -1) return null;
+    sessions[sIdx].participants[pIdx].buys.push({
+      amount: Number(amount),
+      timestamp: new Date().toISOString(),
+    });
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return sessions[sIdx];
   });
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  return sessions[sIdx];
 }
 
 export async function removeBuy(sessionId, playerId, buyIndex) {
-  const sessions = await getSessions();
-  const sIdx = sessions.findIndex(s => s.id === sessionId);
-  if (sIdx === -1) return null;
-  const pIdx = sessions[sIdx].participants.findIndex(p => p.playerId === playerId);
-  if (pIdx === -1) return null;
-  sessions[sIdx].participants[pIdx].buys.splice(buyIndex, 1);
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  return sessions[sIdx];
+  return withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const sIdx = sessions.findIndex(s => s.id === sessionId);
+    if (sIdx === -1) return null;
+    const pIdx = sessions[sIdx].participants.findIndex(p => p.playerId === playerId);
+    if (pIdx === -1) return null;
+    sessions[sIdx].participants[pIdx].buys.splice(buyIndex, 1);
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return sessions[sIdx];
+  });
 }
 
 export async function setFinalAmount(sessionId, playerId, amount) {
-  const sessions = await getSessions();
-  const sIdx = sessions.findIndex(s => s.id === sessionId);
-  if (sIdx === -1) return null;
-  const pIdx = sessions[sIdx].participants.findIndex(p => p.playerId === playerId);
-  if (pIdx === -1) return null;
-  sessions[sIdx].participants[pIdx].finalAmount = Number(amount);
-  await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
-  return sessions[sIdx];
+  return withLock(KEYS.SESSIONS, async () => {
+    const sessions = await getSessions();
+    const sIdx = sessions.findIndex(s => s.id === sessionId);
+    if (sIdx === -1) return null;
+    const pIdx = sessions[sIdx].participants.findIndex(p => p.playerId === playerId);
+    if (pIdx === -1) return null;
+    sessions[sIdx].participants[pIdx].finalAmount = Number(amount);
+    await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
+    return sessions[sIdx];
+  });
 }
 
 // ─── Cálculos ─────────────────────────────────────────────────────────────────
@@ -270,27 +295,45 @@ export async function getPlayerHistory(playerId, seasonId) {
 // ─── Ajustes manuales ────────────────────────────────────────────────────────
 
 export async function addPlayerAdjustment(playerId, { description, amount }) {
-  const players = await getPlayers();
-  const idx = players.findIndex(p => p.id === playerId);
-  if (idx === -1) return null;
-  if (!players[idx].adjustments) players[idx].adjustments = [];
-  players[idx].adjustments.push({
-    id: genId(),
-    description: description.trim(),
-    amount: Number(amount),
-    date: new Date().toISOString(),
+  return withLock(KEYS.PLAYERS, async () => {
+    const players = await getPlayers();
+    const idx = players.findIndex(p => p.id === playerId);
+    if (idx === -1) return null;
+    if (!players[idx].adjustments) players[idx].adjustments = [];
+    players[idx].adjustments.push({
+      id: genId(),
+      description: description.trim(),
+      amount: Number(amount),
+      date: new Date().toISOString(),
+    });
+    await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+    return players[idx];
   });
-  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
-  return players[idx];
 }
 
 export async function deletePlayerAdjustment(playerId, adjustmentId) {
-  const players = await getPlayers();
-  const idx = players.findIndex(p => p.id === playerId);
-  if (idx === -1) return null;
-  players[idx].adjustments = (players[idx].adjustments || []).filter(a => a.id !== adjustmentId);
-  await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
-  return players[idx];
+  return withLock(KEYS.PLAYERS, async () => {
+    const players = await getPlayers();
+    const idx = players.findIndex(p => p.id === playerId);
+    if (idx === -1) return null;
+    players[idx].adjustments = (players[idx].adjustments || []).filter(a => a.id !== adjustmentId);
+    await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+    return players[idx];
+  });
+}
+
+export async function updatePlayerAdjustment(playerId, adjustmentId, { description, amount }) {
+  return withLock(KEYS.PLAYERS, async () => {
+    const players = await getPlayers();
+    const idx = players.findIndex(p => p.id === playerId);
+    if (idx === -1) return null;
+    const adjustments = players[idx].adjustments || [];
+    const adjIdx = adjustments.findIndex(a => a.id === adjustmentId);
+    if (adjIdx === -1) return null;
+    adjustments[adjIdx] = { ...adjustments[adjIdx], description: description.trim(), amount: Number(amount) };
+    await AsyncStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+    return players[idx];
+  });
 }
 
 /**

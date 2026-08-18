@@ -109,11 +109,7 @@ export default function HomeScreen({ navigation, route }) {
       <FlatList
         data={sessions}
         keyExtractor={item => item.id}
-        contentContainerStyle={{
-          padding: 16,
-          paddingBottom: fabBottom + 70, // espacio para el FAB
-          flexGrow: 1,
-        }}
+        contentContainerStyle={[styles.listContent, { paddingBottom: fabBottom + 70 }]}
         ListHeaderComponent={
           <TouchableOpacity
             style={styles.rankingBtn}
@@ -143,7 +139,7 @@ export default function HomeScreen({ navigation, route }) {
               activeOpacity={0.75}>
               <Card>
                 <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.flex1}>
                     <Text style={styles.sessionName}>{item.name}</Text>
                     <Text style={styles.sessionMeta}>
                       {new Date(item.createdAt).toLocaleDateString('es-AR')}
@@ -305,7 +301,9 @@ function createStyles(C) {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
     },
     toggleAllText: { fontSize: 13, color: C.accent, fontWeight: '700' },
-    noPlayersText: { fontSize: 15, color: C.muted, marginBottom: 16 },
+    noPlayersText: { fontSize: 15, color: C.gray, marginBottom: 16 },
+    listContent:   { padding: 16, flexGrow: 1 },
+    flex1:         { flex: 1 },
     playersList: { maxHeight: 200, marginBottom: 12 },
     playerRow: {
       flexDirection: 'row', alignItems: 'center',

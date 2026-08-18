@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getSeasons, getActiveSeason, createSeason } from '../seasons';
+import { getSeasons, getActiveSeason, createSeason, deleteSeason, reopenSeason } from '../seasons';
 
 beforeEach(async () => {
   await AsyncStorage.clear();
@@ -73,6 +73,73 @@ describe('createSeason', () => {
   it('recorta espacios en el nombre', async () => {
     const created = await createSeason('  Con espacios  ');
     expect(created.name).toBe('Con espacios');
+  });
+});
+
+describe('deleteSeason', () => {
+  it('borra una temporada sin partidas', async () => {
+    const created = await createSeason('Para borrar');
+    await deleteSeason(created.id);
+
+    const seasons = await getSeasons();
+    expect(seasons.find(s => s.id === created.id)).toBeUndefined();
+  });
+
+  it('lanza error si la temporada tiene partidas', async () => {
+    const created = await createSeason('Con partidas');
+    const sessions = [
+      { id: 's1', name: 'Partida', createdAt: '2025-01-01T00:00:00.000Z', status: 'closed', participants: [], seasonId: created.id },
+    ];
+    await AsyncStorage.setItem('poker_sessions', JSON.stringify(sessions));
+
+    await expect(deleteSeason(created.id)).rejects.toThrow(/partidas/i);
+
+    const seasons = await getSeasons();
+    expect(seasons.find(s => s.id === created.id)).toBeDefined();
+  });
+
+  it('lanza error si la temporada no existe', async () => {
+    await getSeasons();
+    await expect(deleteSeason('inexistente')).rejects.toThrow(/no encontrada/i);
+  });
+
+  it('borrar la temporada activa deja sin ninguna activa', async () => {
+    const active = await getActiveSeason();
+    await deleteSeason(active.id);
+
+    const seasons = await getSeasons();
+    expect(seasons.filter(s => s.status === 'active')).toHaveLength(0);
+  });
+});
+
+describe('reopenSeason', () => {
+  it('reactiva una temporada cerrada y cierra la que estaba activa', async () => {
+    const first = await getActiveSeason(); // "Temporada 1"
+    const second = await createSeason('Temporada 2'); // cierra la primera, queda activa
+
+    await reopenSeason(first.id);
+
+    const seasons = await getSeasons();
+    const reopened = seasons.find(s => s.id === first.id);
+    const closedSecond = seasons.find(s => s.id === second.id);
+
+    expect(reopened.status).toBe('active');
+    expect(reopened.closedAt).toBeNull();
+    expect(closedSecond.status).toBe('closed');
+  });
+
+  it('no hace nada si la temporada ya está activa', async () => {
+    const active = await getActiveSeason();
+    await reopenSeason(active.id);
+
+    const seasons = await getSeasons();
+    expect(seasons.filter(s => s.status === 'active')).toHaveLength(1);
+    expect(seasons.find(s => s.id === active.id).status).toBe('active');
+  });
+
+  it('lanza error si la temporada no existe', async () => {
+    await getSeasons();
+    await expect(reopenSeason('inexistente')).rejects.toThrow(/no encontrada/i);
   });
 });
 
