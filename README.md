@@ -28,7 +28,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 | Layer | Technology |
 |---|---|
 | Framework | React Native 0.85 (CLI) |
-| Language | TypeScript, migrated incrementally (only `App.js`, the entry point, is still plain JS) |
+| Language | TypeScript |
 | Navigation | React Navigation — Native Stack |
 | Storage | AsyncStorage (100% local, no backend) |
 | Charts | Custom chart built with plain React Native views (no charting library) |
