@@ -28,14 +28,12 @@ export default function DebtScreen({ route }) {
   const [payNote, setPayNote]           = useState('');
   const [loading, setLoading]           = useState(false);
 
-  useFocusEffect(
-    useCallback(() => { loadDebts(); }, [])
-  );
-
-  async function loadDebts() {
+  const loadDebts = useCallback(async () => {
     const all = await getAllDebts();
     setSessionDebts(all.filter(d => d.sessionId === session.id));
-  }
+  }, [session.id]);
+
+  useFocusEffect(useCallback(() => { loadDebts(); }, [loadDebts]));
 
   function findStoredDebt(from, to) {
     return sessionDebts.find(

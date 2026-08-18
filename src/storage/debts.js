@@ -11,15 +11,17 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { genId, safeParse } from './id';
 
 const DEBTS_KEY   = 'poker_debts';
 const BACKUP_KEY  = 'poker_debts_backup';
+export const MANUAL_DEBT_SESSION_ID = 'ajuste_previo';
 
 // ─── Lectura ──────────────────────────────────────────────────
 
 export async function getAllDebts() {
   const raw = await AsyncStorage.getItem(DEBTS_KEY);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse(raw, []);
 }
 
 export async function getPendingDebts() {
@@ -58,7 +60,7 @@ async function saveBackup(debts) {
 
 async function getBackup() {
   const raw = await AsyncStorage.getItem(BACKUP_KEY);
-  return raw ? JSON.parse(raw) : null;
+  return safeParse(raw, null);
 }
 
 async function clearBackup() {
@@ -73,13 +75,19 @@ export async function canUndoReNet() {
   const backup = await getBackup();
   if (!backup) return { canUndo: false, reason: 'no_backup' };
 
-  // Verificar si hay pagos registrados sobre deudas consolidadas
+  // Verificar si se registró algún pago nuevo (sobre cualquier deuda, no
+  // solo las consolidadas) desde que se guardó el backup: deshacer
+  // pisaría ese pago con el estado viejo.
   const currentDebts = await getAllDebts();
-  const consolidatedWithPayments = currentDebts.filter(
-    d => d.isConsolidated && d.payments && d.payments.length > 0
+  const backupPaymentCounts = new Map(
+    backup.debts.map(d => [d.id, (d.payments || []).length])
   );
+  const hasNewPayments = currentDebts.some(d => {
+    const before = backupPaymentCounts.get(d.id) ?? 0;
+    return (d.payments || []).length > before;
+  });
 
-  if (consolidatedWithPayments.length > 0) {
+  if (hasNewPayments) {
     return { canUndo: false, reason: 'has_payments' };
   }
 
@@ -107,29 +115,42 @@ function netDebts(allDebts) {
     const sign = idA === keyA.id ? 1 : -1;
 
     if (!netMap[key]) {
-      netMap[key] = { playerA: keyA, playerB: keyB, net: 0, payments: [] };
+      netMap[key] = { playerA: keyA, playerB: keyB, net: 0, payments: [], sourceDebts: [] };
     }
     netMap[key].net += sign * d.pendingAmount;
     netMap[key].payments.push(...d.payments);
+    netMap[key].sourceDebts.push(d);
   });
 
   const now = new Date().toISOString();
   const consolidatedDebts = [];
 
-  Object.values(netMap).forEach(({ playerA, playerB, net, payments }) => {
+  Object.values(netMap).forEach(({ playerA, playerB, net, payments, sourceDebts }) => {
     if (Math.abs(net) < 1) return;
+
+    // Si hay una sola deuda pendiente entre este par, no hay nada que
+    // consolidar: se mantiene tal cual (conserva su sessionId real, así
+    // DebtScreen puede seguir encontrándola para registrar pagos).
+    if (sourceDebts.length === 1) {
+      consolidatedDebts.push(sourceDebts[0]);
+      return;
+    }
 
     const fromPlayer = net > 0 ? playerA : playerB;
     const toPlayer   = net > 0 ? playerB : playerA;
     const amount     = Math.round(Math.abs(net));
     const totalPaid  = payments.reduce((sum, p) => sum + p.amount, 0);
+    // Si alguna de las deudas combinadas era un ajuste previo, la
+    // consolidada sigue siendo ajuste previo: no puede perder la marca
+    // que la hace contar en el balance del jugador (ver getPlayerStats).
+    const hasManualSource = sourceDebts.some(d => d.sessionId === MANUAL_DEBT_SESSION_ID);
 
     consolidatedDebts.push({
-      id:             `net_${fromPlayer.id}_${toPlayer.id}_${Date.now()}`,
+      id:             `net_${fromPlayer.id}_${toPlayer.id}_${genId()}`,
       fromPlayer,
       toPlayer,
-      sessionId:      'neteado',
-      sessionName:    'Deuda consolidada',
+      sessionId:      hasManualSource ? MANUAL_DEBT_SESSION_ID : 'neteado',
+      sessionName:    hasManualSource ? 'Deuda consolidada (incluye ajuste previo)' : 'Deuda consolidada',
       originalAmount: amount + totalPaid,
       pendingAmount:  amount,
       status:         'pending',
@@ -162,7 +183,7 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
 
   const now = new Date().toISOString();
   const newDebts = calcDebtsResult.map(debt => ({
-    id:             `${session.id}_${debt.fromId}_${debt.toId}_${Date.now()}`,
+    id:             `${session.id}_${debt.fromId}_${debt.toId}_${genId()}`,
     fromPlayer:     { id: debt.fromId, name: debt.from },
     toPlayer:       { id: debt.toId,   name: debt.to },
     sessionId:      session.id,
@@ -178,6 +199,71 @@ export async function generateDebtsFromSession(session, calcDebtsResult) {
   const netted = netDebts([...allDebts, ...newDebts]);
   await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
   return netted;
+}
+
+/**
+ * Registra una deuda manual entre dos jugadores (p. ej. plata pendiente
+ * de antes de usar la app). Se comporta como cualquier deuda de sesión:
+ * se puede pagar parcial, marcar como saldada, y se netea automáticamente
+ * si ya había una deuda pendiente entre el mismo par.
+ */
+export async function addManualDebt({ fromPlayer, toPlayer, amount, description }) {
+  const allDebts = await getAllDebts();
+  const now = new Date().toISOString();
+  const newDebt = {
+    id:             genId(),
+    fromPlayer,
+    toPlayer,
+    sessionId:      MANUAL_DEBT_SESSION_ID,
+    sessionName:    (description || '').trim() || 'Ajuste previo',
+    originalAmount: amount,
+    pendingAmount:  amount,
+    status:         'pending',
+    payments:       [],
+    createdAt:      now,
+    isConsolidated: false,
+  };
+
+  const netted = netDebts([...allDebts, newDebt]);
+  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(netted));
+  return netted;
+}
+
+/**
+ * Borra una deuda manual suelta. Solo funciona si todavía no se neteó
+ * con otra deuda del mismo par — una vez consolidada podría incluir
+ * plata de una deuda real de partida, y borrarla la perdería.
+ */
+export async function deleteManualDebt(debtId) {
+  const allDebts = await getAllDebts();
+  const debt = allDebts.find(
+    d => d.id === debtId && d.sessionId === MANUAL_DEBT_SESSION_ID && !d.isConsolidated
+  );
+  if (!debt) {
+    throw new Error('No se puede borrar: ya se combinó con otra deuda entre estos jugadores.');
+  }
+  const updated = allDebts.filter(d => d.id !== debtId);
+  await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+/**
+ * Indica si hay algo para consolidar: al menos un par de jugadores con
+ * 2+ deudas pendientes entre ellos. Como generateDebtsFromSession ya
+ * netea automáticamente en cada cierre de partida, esto normalmente da
+ * false — solo es true en casos raros (p. ej. datos migrados a mano).
+ */
+export async function hasDebtsToReorganize() {
+  const debts = await getAllDebts();
+  const pending = debts.filter(d => d.status !== 'paid');
+  const counts = {};
+  pending.forEach(d => {
+    const idA = d.fromPlayer.id;
+    const idB = d.toPlayer.id;
+    const key = idA < idB ? `${idA}|${idB}` : `${idB}|${idA}`;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.values(counts).some(n => n >= 2);
 }
 
 /**

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateDebtsFromSession } from './debts';
+import { generateDebtsFromSession, deleteDebtsForSession, getAllDebts, MANUAL_DEBT_SESSION_ID } from './debts';
+import { genId, safeParse } from './id';
 
 const KEYS = {
   SESSIONS: 'poker_sessions',
@@ -10,13 +11,13 @@ const KEYS = {
 
 export async function getPlayers() {
   const raw = await AsyncStorage.getItem(KEYS.PLAYERS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse(raw, []);
 }
 
 export async function savePlayer(name) {
   const players = await getPlayers();
   const newPlayer = {
-    id: Date.now().toString(),
+    id: genId(),
     name: name.trim(),
     createdAt: new Date().toISOString(),
   };
@@ -35,7 +36,7 @@ export async function deletePlayer(playerId) {
 
 export async function getSessions() {
   const raw = await AsyncStorage.getItem(KEYS.SESSIONS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse(raw, []);
 }
 
 export async function getSession(sessionId) {
@@ -43,13 +44,14 @@ export async function getSession(sessionId) {
   return sessions.find(s => s.id === sessionId) || null;
 }
 
-export async function createSession(name) {
+export async function createSession(name, seasonId) {
   const sessions = await getSessions();
   const newSession = {
-    id: Date.now().toString(),
+    id: genId(),
     name: name.trim(),
     createdAt: new Date().toISOString(),
     status: 'active',
+    seasonId,
     participants: [],
   };
   sessions.unshift(newSession);
@@ -61,7 +63,7 @@ export async function createSession(name) {
  * Crea una sesión con jugadores y sus compras iniciales en un solo paso.
  * entries: [{ player: { id, name }, amount: number }]
  */
-export async function createSessionWithBuys(name, entries) {
+export async function createSessionWithBuys(name, entries, seasonId) {
   const sessions = await getSessions();
   const now = new Date().toISOString();
   const participants = entries
@@ -74,15 +76,21 @@ export async function createSessionWithBuys(name, entries) {
     }));
 
   const newSession = {
-    id: Date.now().toString(),
+    id: genId(),
     name: name.trim(),
     createdAt: now,
     status: 'active',
+    seasonId,
     participants,
   };
   sessions.unshift(newSession);
   await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(sessions));
   return newSession;
+}
+
+export async function getSessionsBySeason(seasonId) {
+  const sessions = await getSessions();
+  return sessions.filter(s => s.seasonId === seasonId);
 }
 
 export async function closeSession(sessionId) {
@@ -101,6 +109,7 @@ export async function deleteSession(sessionId) {
   const sessions = await getSessions();
   const updated = sessions.filter(s => s.id !== sessionId);
   await AsyncStorage.setItem(KEYS.SESSIONS, JSON.stringify(updated));
+  await deleteDebtsForSession(sessionId);
 }
 
 // ─── Participantes ────────────────────────────────────────────────────────────
@@ -232,10 +241,13 @@ export function calcDebts(session) {
 
 /**
  * Historial de un jugador a través de todas las sesiones cerradas.
+ * Si se pasa seasonId, se limita a las sesiones de esa temporada.
  */
-export async function getPlayerHistory(playerId) {
+export async function getPlayerHistory(playerId, seasonId) {
   const sessions = await getSessions();
-  const closed = sessions.filter(s => s.status === 'closed');
+  const closed = sessions.filter(s =>
+    s.status === 'closed' && (!seasonId || s.seasonId === seasonId)
+  );
 
   return closed
     .map(s => {
@@ -263,7 +275,7 @@ export async function addPlayerAdjustment(playerId, { description, amount }) {
   if (idx === -1) return null;
   if (!players[idx].adjustments) players[idx].adjustments = [];
   players[idx].adjustments.push({
-    id: Date.now().toString(),
+    id: genId(),
     description: description.trim(),
     amount: Number(amount),
     date: new Date().toISOString(),
@@ -282,10 +294,12 @@ export async function deletePlayerAdjustment(playerId, adjustmentId) {
 }
 
 /**
- * Stats globales de un jugador.
+ * Stats de un jugador. Si se pasa seasonId, las partidas (history, wins,
+ * bestGame, etc.) se limitan a esa temporada; los ajustes manuales son
+ * siempre globales, no tienen temporada.
  */
-export async function getPlayerStats(playerId) {
-  const history = await getPlayerHistory(playerId);
+export async function getPlayerStats(playerId, seasonId) {
+  const history = await getPlayerHistory(playerId, seasonId);
   const players = await getPlayers();
   const player = players.find(p => p.id === playerId);
   const adjustments = (player?.adjustments || [])
@@ -293,7 +307,16 @@ export async function getPlayerStats(playerId) {
     .sort((a, b) => new Date(b.date) - new Date(a.date));
   const adjustmentsTotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
 
-  if (history.length === 0 && adjustments.length === 0) return null;
+  const allDebts = await getAllDebts();
+  const manualDebtsNet = allDebts
+    .filter(d => d.sessionId === MANUAL_DEBT_SESSION_ID && d.status !== 'paid')
+    .reduce((sum, d) => {
+      if (d.toPlayer.id === playerId) return sum + d.pendingAmount;
+      if (d.fromPlayer.id === playerId) return sum - d.pendingAmount;
+      return sum;
+    }, 0);
+
+  if (history.length === 0 && adjustments.length === 0 && manualDebtsNet === 0) return null;
 
   const wins = history.filter(h => h.balance > 0).length;
   const losses = history.filter(h => h.balance < 0).length;
@@ -312,9 +335,10 @@ export async function getPlayerStats(playerId) {
     losses,
     ties,
     winRate: history.length > 0 ? Math.round((wins / history.length) * 100) : 0,
-    totalBalance: sessionBalance + adjustmentsTotal,
+    totalBalance: sessionBalance + adjustmentsTotal + manualDebtsNet,
     sessionBalance,
     adjustmentsTotal,
+    manualDebtsNet,
     adjustments,
     bestGame,
     worstGame,
@@ -325,21 +349,27 @@ export async function getPlayerStats(playerId) {
 // ─── Ranking global ───────────────────────────────────────────────────────────
 
 /**
- * Ranking de todos los jugadores ordenado por balance histórico.
- * Solo incluye jugadores con al menos una partida cerrada.
+ * Ranking de jugadores. Sin seasonId: histórico total, ordenado por
+ * totalBalance (incluye ajustes manuales), solo jugadores con al menos
+ * una partida cerrada o un ajuste — comportamiento sin cambios.
+ * Con seasonId: ranking de esa temporada, ordenado por sessionBalance
+ * (resultado puro de las partidas, sin ajustes globales) y solo incluye
+ * jugadores que jugaron al menos una partida en esa temporada.
  */
-export async function getGlobalRanking() {
+export async function getGlobalRanking(seasonId) {
   const players = await getPlayers();
   const results = await Promise.all(
     players.map(async p => {
-      const stats = await getPlayerStats(p.id);
+      const stats = await getPlayerStats(p.id, seasonId);
       if (!stats) return null;
+      if (seasonId && stats.totalGames === 0) return null;
       return { playerId: p.id, name: p.name, ...stats };
     })
   );
-  return results
-    .filter(Boolean)
-    .sort((a, b) => b.totalBalance - a.totalBalance || b.totalGames - a.totalGames);
+  const ranked = results.filter(Boolean);
+  return seasonId
+    ? ranked.sort((a, b) => b.sessionBalance - a.sessionBalance || b.totalGames - a.totalGames)
+    : ranked.sort((a, b) => b.totalBalance - a.totalBalance || b.totalGames - a.totalGames);
 }
 
 // ─── Helpers para compartir ───────────────────────────────────────────────────
@@ -355,13 +385,13 @@ export function buildWhatsAppSummary(session) {
   });
 
   sorted.forEach(p => {
-    const { totalBought, finalAmount, balance } = calcParticipant(p);
+    const { balance } = calcParticipant(p);
     if (p.finalAmount === null) {
       text += `👤 ${p.name}: sin resultado\n`;
     } else {
       const emoji = balance > 0 ? '🏆' : balance < 0 ? '💸' : '🤝';
       const sign = balance > 0 ? '+' : '';
-      text += `${emoji} ${p.name}: ${balance.toLocaleString('es-AR')}$\n`;
+      text += `${emoji} ${p.name}: ${sign}${balance.toLocaleString('es-AR')}$\n`;
     }
   });
 

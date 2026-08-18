@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Btn } from './UI';
+import { pick, types, isErrorWithCode, errorCodes, saveDocuments } from '@react-native-documents/picker';
 import { useTheme } from '../theme/ThemeContext';
 import RNFS from 'react-native-fs';
 
@@ -13,10 +13,11 @@ const APP_VERSION = '1.0.0';
 
 async function exportAllData() {
   // En lugar de getAllKeys + multiGet, leemos las claves conocidas directamente
-  const [playersRaw, sessionsRaw, debtsRaw] = await Promise.all([
+  const [playersRaw, sessionsRaw, debtsRaw, seasonsRaw] = await Promise.all([
     AsyncStorage.getItem('poker_players'),
     AsyncStorage.getItem('poker_sessions'),
     AsyncStorage.getItem('poker_debts'),
+    AsyncStorage.getItem('poker_seasons'),
   ]);
 
   return {
@@ -26,15 +27,82 @@ async function exportAllData() {
       poker_players:  playersRaw  ? JSON.parse(playersRaw)  : [],
       poker_sessions: sessionsRaw ? JSON.parse(sessionsRaw) : [],
       poker_debts:    debtsRaw    ? JSON.parse(debtsRaw)    : [],
+      poker_seasons:  seasonsRaw  ? JSON.parse(seasonsRaw)  : [],
     },
   };
 }
 
-export default function InfoModal({ visible, onClose, title, children }) {
+/**
+ * Valida que el JSON tenga la forma de un backup de Poker Control
+ * antes de tocar el storage.
+ */
+function isValidBackup(payload) {
+  const data = payload?.data;
+  if (!data || typeof data !== 'object') return false;
+  return ['poker_players', 'poker_sessions', 'poker_debts', 'poker_seasons']
+    .every(key => Array.isArray(data[key]));
+}
+
+export default function InfoModal({ visible, onClose, title, children, onImported }) {
   const insets = useSafeAreaInsets();
   const { C, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  async function applyImport(data) {
+    setImporting(true);
+    try {
+      await AsyncStorage.setMany({
+        poker_players:  JSON.stringify(data.poker_players),
+        poker_sessions: JSON.stringify(data.poker_sessions),
+        poker_debts:    JSON.stringify(data.poker_debts),
+        poker_seasons:  JSON.stringify(data.poker_seasons),
+      });
+      // El backup de "reorganizar deudas" queda obsoleto tras un reemplazo total.
+      await AsyncStorage.removeItem('poker_debts_backup');
+      onClose();
+      onImported?.();
+    } catch (err) {
+      Alert.alert('Error al importar', err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function handleImport() {
+    let file;
+    try {
+      [file] = await pick({ type: [types.json] });
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      Alert.alert('Error al importar', err.message);
+      return;
+    }
+
+    let payload;
+    try {
+      const text = await (await fetch(file.uri)).text();
+      payload = JSON.parse(text);
+    } catch (err) {
+      Alert.alert('Error al importar', 'No se pudo leer el archivo. ¿Es un JSON válido?');
+      return;
+    }
+
+    if (!isValidBackup(payload)) {
+      Alert.alert('Archivo inválido', 'Ese archivo no tiene el formato de un backup de Poker Control.');
+      return;
+    }
+
+    Alert.alert(
+      'Importar backup',
+      'Esto va a reemplazar TODOS los datos actuales (jugadores, partidas, temporadas y deudas) por los del archivo. No se puede deshacer.\n\n¿Continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Reemplazar todo', style: 'destructive', onPress: () => applyImport(payload.data) },
+      ]
+    );
+  }
 
   async function handleExport() {
     setExporting(true);
@@ -47,12 +115,14 @@ export default function InfoModal({ visible, onClose, title, children }) {
       await RNFS.writeFile(path, json, 'utf8');
 
       if (Platform.OS === 'android') {
-        // En Android usamos el Intent de share con content:// URI via FileProvider
-        await RNFS.scanFile(path); // indexa el archivo
-        await Share.share({
-          title:   'PokerControl — Backup',
-          message: json, // fallback texto
-          url:     `file://${path}`,
+        // Share.share con url: file:// no funciona en Android sin un FileProvider:
+        // termina compartiendo el JSON como texto plano en vez del archivo.
+        // saveDocuments abre el diálogo nativo "Guardar como" y sí guarda un
+        // archivo .json real (en Descargas, Drive, etc.).
+        await saveDocuments({
+          sourceUris: [encodeURI(`file://${path}`)],
+          fileName:   filename,
+          mimeType:   'application/json',
         });
       } else {
         // iOS comparte directo como archivo
@@ -63,6 +133,7 @@ export default function InfoModal({ visible, onClose, title, children }) {
       }
 
     } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       if (err.message !== 'User did not share') {
         Alert.alert('Error al exportar', err.message);
       }
@@ -103,13 +174,13 @@ export default function InfoModal({ visible, onClose, title, children }) {
             <View style={styles.exportBlock}>
               <Text style={styles.exportTitle}>Backup de datos</Text>
               <Text style={styles.exportDesc}>
-                Exportá toda tu información (jugadores, partidas, historial) como archivo JSON. Podés guardarlo en Drive, enviarlo por WhatsApp o usarlo para restaurar en otro dispositivo.
+                Exportá toda tu información (jugadores, partidas, temporadas y deudas) como archivo JSON, o importá un backup para restaurarla en este dispositivo.
               </Text>
 
               <TouchableOpacity
                 style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
                 onPress={handleExport}
-                disabled={exporting}
+                disabled={exporting || importing}
                 activeOpacity={0.8}>
                 {exporting
                   ? <ActivityIndicator color={C.accent} size="small" />
@@ -120,10 +191,30 @@ export default function InfoModal({ visible, onClose, title, children }) {
                     {exporting ? 'Exportando...' : 'Exportar JSON'}
                   </Text>
                   <Text style={styles.exportBtnSub}>
-                    Jugadores · Partidas · Historial
+                    Jugadores · Partidas · Temporadas · Deudas
                   </Text>
                 </View>
                 {!exporting && <Text style={styles.exportArrow}>›</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.exportBtn, styles.importBtn, importing && styles.exportBtnDisabled]}
+                onPress={handleImport}
+                disabled={exporting || importing}
+                activeOpacity={0.8}>
+                {importing
+                  ? <ActivityIndicator color={C.accent} size="small" />
+                  : <Text style={styles.exportBtnIcon}>📥</Text>
+                }
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.exportBtnLabel}>
+                    {importing ? 'Importando...' : 'Importar JSON'}
+                  </Text>
+                  <Text style={styles.exportBtnSub}>
+                    Reemplaza todos los datos actuales
+                  </Text>
+                </View>
+                {!importing && <Text style={styles.exportArrow}>›</Text>}
               </TouchableOpacity>
             </View>
 
@@ -209,6 +300,7 @@ function createStyles(C) {
     borderWidth: 1, borderColor: C.cardBorder,
     padding: 16, gap: 12,
   },
+  importBtn: { marginTop: 10 },
   exportBtnDisabled: { opacity: 0.6 },
   exportBtnIcon:  { fontSize: 25 },
   exportBtnLabel: { fontSize: 17, fontWeight: '700', color: C.white, marginBottom: 2 },

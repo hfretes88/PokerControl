@@ -6,40 +6,52 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { getPlayerStats, addPlayerAdjustment, deletePlayerAdjustment } from '../storage/storage';
-import { Card, Btn, Divider, formatMoney } from '../components/UI';
+import { getPlayerStats, deletePlayerAdjustment, getPlayers } from '../storage/storage';
+import { getDebtsForPlayer, addManualDebt, deleteManualDebt, markAsPaid, MANUAL_DEBT_SESSION_ID } from '../storage/debts';
+import { Card, Btn, formatMoney } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
 import LineChart from '../components/LineChart';
 import PlayerDebtsSection from '../components/PlayerDebtsSection';
 
 export default function StatsScreen({ route }) {
-  const { playerId, playerName } = route.params;
+  const { playerId, playerName, seasonId, seasonName } = route.params;
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [stats, setStats] = useState(null);
+  const [manualDebts, setManualDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adjModal, setAdjModal] = useState(false);
   const [adjType, setAdjType] = useState('cobro');
   const [adjDescription, setAdjDescription] = useState('');
   const [adjAmount, setAdjAmount] = useState('');
+  const [otherPlayers, setOtherPlayers] = useState([]);
+  const [adjCounterpartId, setAdjCounterpartId] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
-  useFocusEffect(
-    useCallback(() => { load(); }, [])
-  );
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
-    const data = await getPlayerStats(playerId);
+    const [data, { owes, owed }] = await Promise.all([
+      getPlayerStats(playerId, seasonId),
+      getDebtsForPlayer(playerId),
+    ]);
     setStats(data);
+    setManualDebts(
+      [...owes, ...owed].filter(d => d.sessionId === MANUAL_DEBT_SESSION_ID && d.status !== 'paid')
+    );
     setLoading(false);
-  }
+  }, [playerId, seasonId]);
 
-  function openAdjModal() {
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  async function openAdjModal() {
     setAdjType('cobro');
     setAdjDescription('');
     setAdjAmount('');
+    setAdjCounterpartId(null);
+    const players = await getPlayers();
+    setOtherPlayers(players.filter(p => p.id !== playerId));
     setAdjModal(true);
   }
 
@@ -49,13 +61,60 @@ export default function StatsScreen({ route }) {
       Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.');
       return;
     }
-    const finalAmount = adjType === 'deuda' ? -amount : amount;
-    await addPlayerAdjustment(playerId, {
-      description: adjDescription || (adjType === 'deuda' ? 'Deuda previa' : 'Cobro previo'),
-      amount: finalAmount,
+    const counterpart = otherPlayers.find(p => p.id === adjCounterpartId);
+    if (!counterpart) {
+      Alert.alert('Falta el jugador', 'Elegí con quién es la deuda previa.');
+      return;
+    }
+    const me = { id: playerId, name: playerName };
+    const other = { id: counterpart.id, name: counterpart.name };
+    const fromPlayer = adjType === 'deuda' ? me : other;
+    const toPlayer   = adjType === 'deuda' ? other : me;
+    await addManualDebt({
+      fromPlayer,
+      toPlayer,
+      amount,
+      description: adjDescription,
     });
     setAdjModal(false);
+    setRefreshTick(t => t + 1);
     load();
+  }
+
+  async function handleDeleteManualDebt(debtId) {
+    Alert.alert('Eliminar deuda previa', '¿Eliminar este registro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteManualDebt(debtId);
+            setRefreshTick(t => t + 1);
+            load();
+          } catch (err) {
+            Alert.alert('No se puede eliminar', err.message);
+          }
+        }
+      }
+    ]);
+  }
+
+  async function handleMarkManualDebtPaid(debt) {
+    Alert.alert(
+      'Saldar deuda previa',
+      `¿Confirmar que se pagó ${formatMoney(debt.pendingAmount)}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            await markAsPaid(debt.id);
+            setRefreshTick(t => t + 1);
+            load();
+          }
+        }
+      ]
+    );
   }
 
   async function handleDeleteAdj(adjustmentId) {
@@ -84,10 +143,12 @@ export default function StatsScreen({ route }) {
           <Text style={styles.emptyIcon}>📊</Text>
           <Text style={styles.emptyText}>Sin historial aún</Text>
           <Text style={styles.emptyMuted}>
-            {playerName} todavía no tiene partidas cerradas.
+            {seasonId
+              ? `${playerName} todavía no tiene partidas cerradas en ${seasonName}.`
+              : `${playerName} todavía no tiene partidas cerradas.`}
           </Text>
           <TouchableOpacity style={styles.adjAddBtnEmpty} onPress={openAdjModal}>
-            <Text style={styles.adjAddText}>+ Agregar ajuste previo</Text>
+            <Text style={styles.adjAddText}>+ Agregar deuda previa</Text>
           </TouchableOpacity>
         </View>
         {adjModalView()}
@@ -95,7 +156,9 @@ export default function StatsScreen({ route }) {
     );
   }
 
-  const totalIsPositive = stats.totalBalance >= 0;
+  const heroLabel = seasonId ? 'BALANCE DE LA TEMPORADA' : 'BALANCE HISTÓRICO';
+  const heroValue = seasonId ? stats.sessionBalance : stats.totalBalance;
+  const totalIsPositive = heroValue >= 0;
 
   function adjModalView() {
     return (
@@ -104,7 +167,7 @@ export default function StatsScreen({ route }) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}>
           <View style={[styles.modalBox, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={styles.modalTitle}>Ajuste manual</Text>
+            <Text style={styles.modalTitle}>Deuda previa</Text>
 
             {/* Toggle cobro / deuda */}
             <View style={styles.adjTypeRow}>
@@ -113,7 +176,7 @@ export default function StatsScreen({ route }) {
                 onPress={() => setAdjType('cobro')}>
                 <Text style={[styles.adjTypeTxt, adjType === 'cobro' && { color: C.green }]}>
                   <Text style={styles.adjTypeEmoji}>💰 </Text>
-                  Cobro
+                  Me debe
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -121,10 +184,38 @@ export default function StatsScreen({ route }) {
                 onPress={() => setAdjType('deuda')}>
                 <Text style={[styles.adjTypeTxt, adjType === 'deuda' && { color: C.red }]}>
                   <Text style={styles.adjTypeEmoji}>💸 </Text>
-                  Deuda
+                  Le debo
                 </Text>
               </TouchableOpacity>
             </View>
+
+            <Text style={styles.fieldLabel}>
+              {adjType === 'deuda' ? '¿A QUIÉN LE DEBE?' : '¿QUIÉN LE DEBE?'}
+            </Text>
+            {otherPlayers.length === 0 ? (
+              <Text style={styles.noPlayersText}>No hay otros jugadores creados.</Text>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.counterpartList}
+                contentContainerStyle={{ gap: 8 }}>
+                {otherPlayers.map(p => {
+                  const selected = p.id === adjCounterpartId;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.counterpartChip, selected && styles.counterpartChipSelected]}
+                      onPress={() => setAdjCounterpartId(p.id)}
+                      activeOpacity={0.75}>
+                      <Text style={[styles.counterpartChipText, selected && { color: C.bg }]}>
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
 
             <Text style={styles.fieldLabel}>DESCRIPCIÓN (opcional)</Text>
             <TextInput
@@ -161,15 +252,19 @@ export default function StatsScreen({ route }) {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
         {/* Resumen global */}
         <Card style={styles.heroCard}>
-          <Text style={styles.heroLabel}>BALANCE HISTÓRICO</Text>
+          <Text style={styles.heroLabel}>{heroLabel}</Text>
           <Text style={[styles.heroAmount, { color: totalIsPositive ? C.green : C.red }]}>
-            {totalIsPositive ? '+' : ''}{formatMoney(stats.totalBalance)}
+            {totalIsPositive ? '+' : ''}{formatMoney(heroValue)}
           </Text>
-          {stats.adjustmentsTotal !== 0 && (
+          {!seasonId && (stats.adjustmentsTotal !== 0 || stats.manualDebtsNet !== 0) && (
             <Text style={styles.adjBreakdown}>
               Partidas {stats.sessionBalance >= 0 ? '+' : ''}{formatMoney(stats.sessionBalance)}
-              {'  ·  '}
-              Ajustes {stats.adjustmentsTotal > 0 ? '+' : ''}{formatMoney(stats.adjustmentsTotal)}
+              {stats.adjustmentsTotal !== 0 && (
+                <>{'  ·  '}Ajustes {stats.adjustmentsTotal > 0 ? '+' : ''}{formatMoney(stats.adjustmentsTotal)}</>
+              )}
+              {stats.manualDebtsNet !== 0 && (
+                <>{'  ·  '}Deudas previas {stats.manualDebtsNet > 0 ? '+' : ''}{formatMoney(stats.manualDebtsNet)}</>
+              )}
             </Text>
           )}
           {stats.totalGames > 0 && (
@@ -246,41 +341,80 @@ export default function StatsScreen({ route }) {
           </View>
         )}
 
-        {/* Ajustes manuales */}
+        {/* Deudas previas (con contraparte) */}
         <View style={styles.adjSectionHeader}>
-          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Ajustes previos</Text>
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Deudas previas</Text>
           <TouchableOpacity onPress={openAdjModal} style={styles.adjAddBtn}>
             <Text style={styles.adjAddText}>+ Agregar</Text>
           </TouchableOpacity>
         </View>
 
-        {stats.adjustments.length === 0 ? (
-          <Text style={styles.adjEmpty}>Sin ajustes registrados</Text>
+        {manualDebts.length === 0 ? (
+          <Text style={styles.adjEmpty}>Sin deudas previas registradas</Text>
         ) : (
-          stats.adjustments.map(adj => (
-            <Card key={adj.id}>
-              <View style={styles.adjRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.adjDesc}>{adj.description}</Text>
-                  <Text style={styles.histDate}>
-                    {new Date(adj.date).toLocaleDateString('es-AR', {
-                      day: '2-digit', month: 'short', year: 'numeric'
-                    })}
+          manualDebts.map(debt => {
+            const iAmOwed = debt.toPlayer.id === playerId;
+            const counterpartName = iAmOwed ? debt.fromPlayer.name : debt.toPlayer.name;
+            return (
+              <Card key={debt.id}>
+                <View style={styles.adjRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.adjDesc}>
+                      {iAmOwed ? `${counterpartName} le debe` : `Le debe a ${counterpartName}`}
+                    </Text>
+                    <Text style={styles.histDate}>{debt.sessionName}</Text>
+                  </View>
+                  <Text style={[styles.adjAmount, { color: iAmOwed ? C.green : C.red }]}>
+                    {iAmOwed ? '+' : '-'}{formatMoney(debt.pendingAmount)}
                   </Text>
+                  {!iAmOwed && (
+                    <TouchableOpacity
+                      onPress={() => handleMarkManualDebtPaid(debt)}
+                      style={styles.paidBtn}>
+                      <Text style={styles.paidBtnText}>✓</Text>
+                    </TouchableOpacity>
+                  )}
+                  {!debt.isConsolidated && (
+                    <TouchableOpacity onPress={() => handleDeleteManualDebt(debt.id)} style={styles.delBtn}>
+                      <Text style={styles.delText}>🗑</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Text style={[styles.adjAmount, { color: adj.amount >= 0 ? C.green : C.red }]}>
-                  {adj.amount > 0 ? '+' : ''}{formatMoney(adj.amount)}
-                </Text>
-                <TouchableOpacity onPress={() => handleDeleteAdj(adj.id)} style={styles.delBtn}>
-                  <Text style={styles.delText}>🗑</Text>
-                </TouchableOpacity>
-              </View>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
+
+        {/* Ajustes previos legacy (sin contraparte) */}
+        {stats.adjustments.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Ajustes previos (sin jugador asociado)</Text>
+            {stats.adjustments.map(adj => (
+              <Card key={adj.id}>
+                <View style={styles.adjRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.adjDesc}>{adj.description}</Text>
+                    <Text style={styles.histDate}>
+                      {new Date(adj.date).toLocaleDateString('es-AR', {
+                        day: '2-digit', month: 'short', year: 'numeric'
+                      })}
+                    </Text>
+                  </View>
+                  <Text style={[styles.adjAmount, { color: adj.amount >= 0 ? C.green : C.red }]}>
+                    {adj.amount > 0 ? '+' : ''}{formatMoney(adj.amount)}
+                  </Text>
+                  <TouchableOpacity onPress={() => handleDeleteAdj(adj.id)} style={styles.delBtn}>
+                    <Text style={styles.delText}>🗑</Text>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            ))}
+          </>
+        )}
+
         <Text style={styles.sectionTitle}>Deudas pendientes</Text>
         <Card>
-          <PlayerDebtsSection playerId={playerId} />
+          <PlayerDebtsSection key={refreshTick} playerId={playerId} />
         </Card>
         {/* Historial de partidas */}
         {stats.history.length > 0 && (
@@ -363,6 +497,21 @@ function createStyles(C) {
     adjTypeBtnDeuda: { borderColor: C.red, backgroundColor: C.dangerSoftBg },
     adjTypeTxt: { fontSize: 16, fontWeight: '700', color: C.gray },
     adjTypeEmoji: { fontWeight: '400' },
+    noPlayersText: { fontSize: 14, color: C.muted, marginBottom: 12 },
+    counterpartList: { marginBottom: 16 },
+    counterpartChip: {
+      paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,
+      borderWidth: 1, borderColor: C.cardBorder, backgroundColor: C.bg,
+    },
+    counterpartChipSelected: { backgroundColor: C.accent, borderColor: C.accent },
+    counterpartChipText: { fontSize: 14, fontWeight: '600', color: C.white },
+    paidBtn: {
+      width: 32, height: 32, borderRadius: 16, marginLeft: 4,
+      backgroundColor: C.green + '22',
+      borderWidth: 1, borderColor: C.green + '55',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    paidBtnText: { fontSize: 17, color: C.green, fontWeight: '700' },
   }),
   };
 }
