@@ -7,11 +7,14 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessionsBySeason, createSessionWithBuys, deleteSession, getPlayers } from '../storage/storage';
+import type { Session, Player } from '../storage/types';
 import { Card, Btn, formatMoney } from '../components/UI';
+import type { Colors } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
+import type { ScreenProps } from '../navigation/types';
 
-function defaultSessionName() {
+function defaultSessionName(): string {
   const d = new Date();
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -19,16 +22,16 @@ function defaultSessionName() {
   return `Party ${dd}${mm}${yy}`;
 }
 
-export default function HomeScreen({ navigation, route }) {
+export default function HomeScreen({ navigation, route }: ScreenProps<'SessionsList'>) {
   const { seasonId, seasonName } = route.params;
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [sessions, setSessions] = useState([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [sessionName, setSessionName] = useState('');
-  const [allPlayers, setAllPlayers] = useState([]);
-  const [selectedIds, setSelectedIds] = useState({});
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [initialAmount, setInitialAmount] = useState('');
 
   const loadSessions = useCallback(async () => {
@@ -42,7 +45,7 @@ export default function HomeScreen({ navigation, route }) {
     const players = await getPlayers();
     setAllPlayers(players);
     setSessionName(defaultSessionName());
-    const init = {};
+    const init: Record<string, boolean> = {};
     players.forEach(p => { init[p.id] = false; });
     setSelectedIds(init);
     setInitialAmount('');
@@ -57,13 +60,13 @@ export default function HomeScreen({ navigation, route }) {
     setAllPlayers([]);
   }
 
-  function togglePlayer(playerId) {
+  function togglePlayer(playerId: string) {
     setSelectedIds(prev => ({ ...prev, [playerId]: !prev[playerId] }));
   }
 
   function toggleAll() {
     const allSelected = allPlayers.every(p => selectedIds[p.id]);
-    const next = {};
+    const next: Record<string, boolean> = {};
     allPlayers.forEach(p => { next[p.id] = !allSelected; });
     setSelectedIds(next);
   }
@@ -82,7 +85,7 @@ export default function HomeScreen({ navigation, route }) {
     loadSessions();
   }
 
-  async function handleDelete(session) {
+  async function handleDelete(session: Session) {
     Alert.alert('Eliminar partida', `¿Eliminar "${session.name}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -92,7 +95,7 @@ export default function HomeScreen({ navigation, route }) {
     ]);
   }
 
-  function getSessionSummary(session) {
+  function getSessionSummary(session: Session) {
     const pot = session.participants.reduce((sum, p) =>
       sum + p.buys.reduce((s, b) => s + b.amount, 0), 0);
     return { pot, count: session.participants.length };
@@ -266,7 +269,7 @@ export default function HomeScreen({ navigation, route }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return {
   ...createGlobalStyles(C),
   ...StyleSheet.create({

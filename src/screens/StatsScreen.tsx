@@ -8,30 +8,35 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPlayerStats, deletePlayerAdjustment, updatePlayerAdjustment, getPlayers } from '../storage/storage';
 import { getDebtsForPlayer, addManualDebt, deleteManualDebt, markAsPaid, MANUAL_DEBT_SESSION_ID } from '../storage/debts';
+import type { PlayerStats, Debt, Player, PlayerAdjustment } from '../storage/types';
 import { Card, Btn, formatMoney } from '../components/UI';
+import type { Colors } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
 import LineChart from '../components/LineChart';
 import PlayerDebtsSection from '../components/PlayerDebtsSection';
+import type { ScreenProps } from '../navigation/types';
 
-export default function StatsScreen({ route }) {
+type AdjType = 'cobro' | 'deuda';
+
+export default function StatsScreen({ route }: ScreenProps<'Stats'>) {
   const { playerId, playerName, seasonId, seasonName } = route.params;
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [stats, setStats] = useState(null);
-  const [manualDebts, setManualDebts] = useState([]);
+  const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [manualDebts, setManualDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
   const [adjModal, setAdjModal] = useState(false);
-  const [adjType, setAdjType] = useState('cobro');
+  const [adjType, setAdjType] = useState<AdjType>('cobro');
   const [adjDescription, setAdjDescription] = useState('');
   const [adjAmount, setAdjAmount] = useState('');
-  const [otherPlayers, setOtherPlayers] = useState([]);
-  const [adjCounterpartId, setAdjCounterpartId] = useState(null);
+  const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
+  const [adjCounterpartId, setAdjCounterpartId] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [editAdjModal, setEditAdjModal] = useState(false);
-  const [editAdjId, setEditAdjId] = useState(null);
-  const [editAdjType, setEditAdjType] = useState('cobro');
+  const [editAdjId, setEditAdjId] = useState<string | null>(null);
+  const [editAdjType, setEditAdjType] = useState<AdjType>('cobro');
   const [editAdjDescription, setEditAdjDescription] = useState('');
   const [editAdjAmount, setEditAdjAmount] = useState('');
 
@@ -86,7 +91,7 @@ export default function StatsScreen({ route }) {
     load();
   }
 
-  async function handleDeleteManualDebt(debtId) {
+  async function handleDeleteManualDebt(debtId: string) {
     Alert.alert('Eliminar deuda previa', '¿Eliminar este registro?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -97,14 +102,14 @@ export default function StatsScreen({ route }) {
             setRefreshTick(t => t + 1);
             load();
           } catch (err) {
-            Alert.alert('No se puede eliminar', err.message);
+            Alert.alert('No se puede eliminar', err instanceof Error ? err.message : String(err));
           }
         }
       }
     ]);
   }
 
-  async function handleMarkManualDebtPaid(debt) {
+  async function handleMarkManualDebtPaid(debt: Debt) {
     Alert.alert(
       'Saldar deuda previa',
       `¿Confirmar que se pagó ${formatMoney(debt.pendingAmount)}?`,
@@ -122,7 +127,7 @@ export default function StatsScreen({ route }) {
     );
   }
 
-  async function handleDeleteAdj(adjustmentId) {
+  async function handleDeleteAdj(adjustmentId: string) {
     Alert.alert('Eliminar ajuste', '¿Eliminar este ajuste?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -132,7 +137,7 @@ export default function StatsScreen({ route }) {
     ]);
   }
 
-  function openEditAdjModal(adj) {
+  function openEditAdjModal(adj: PlayerAdjustment) {
     setEditAdjId(adj.id);
     setEditAdjType(adj.amount < 0 ? 'deuda' : 'cobro');
     setEditAdjDescription(adj.description);
@@ -141,6 +146,7 @@ export default function StatsScreen({ route }) {
   }
 
   async function handleSaveEditAdj() {
+    if (!editAdjId) return;
     const amount = parseFloat((editAdjAmount || '0').replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
       Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.');
@@ -541,7 +547,7 @@ export default function StatsScreen({ route }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return {
   ...createGlobalStyles(C),
   ...StyleSheet.create({

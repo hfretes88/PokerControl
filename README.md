@@ -28,7 +28,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 | Layer | Technology |
 |---|---|
 | Framework | React Native 0.85 (CLI) |
-| Language | JavaScript, with `src/storage/` and `src/components/` migrated to TypeScript (rest pending, incremental) |
+| Language | TypeScript, migrated incrementally (only `App.js`, the entry point, is still plain JS) |
 | Navigation | React Navigation — Native Stack |
 | Storage | AsyncStorage (100% local, no backend) |
 | Charts | Custom chart built with plain React Native views (no charting library) |
@@ -46,15 +46,17 @@ src/
 │   ├── InfoModal.tsx           # About modal with JSON export/import and theme toggle
 │   ├── LineChart.tsx           # Hand-drawn balance-over-time line chart
 │   └── PlayerDebtsSection.tsx  # Reusable debt summary for StatsScreen
-├── screens/                    # Still plain JS — next in line for the incremental migration
-│   ├── SeasonsScreen.js       # Season list and new season creation (initial screen)
-│   ├── HomeScreen.js          # Session list and new session creation, scoped to a season
-│   ├── SessionScreen.js       # Session detail: buy-ins, results, close
-│   ├── DebtScreen.js          # Per-session debt settlement with payment tracking
-│   ├── PendingDebtsScreen.js  # Global pending debts grouped by debtor
-│   ├── PlayersScreen.js       # Player management
-│   ├── RankingScreen.js       # Leaderboard with podium, scoped to a season or all-time
-│   └── StatsScreen.js         # Per-player stats, balance chart, debt summary
+├── screens/                    # TypeScript
+│   ├── SeasonsScreen.tsx      # Season list and new season creation (initial screen)
+│   ├── HomeScreen.tsx         # Session list and new session creation, scoped to a season
+│   ├── SessionScreen.tsx      # Session detail: buy-ins, results, close
+│   ├── DebtScreen.tsx         # Per-session debt settlement with payment tracking
+│   ├── PendingDebtsScreen.tsx # Global pending debts grouped by debtor
+│   ├── PlayersScreen.tsx      # Player management
+│   ├── RankingScreen.tsx      # Leaderboard with podium, scoped to a season or all-time
+│   └── StatsScreen.tsx        # Per-player stats, balance chart, debt summary
+├── navigation/
+│   └── types.ts               # RootStackParamList — typed route params for every screen
 └── storage/                   # TypeScript
     ├── storage.ts             # AsyncStorage CRUD, balance/debt calculations, stats
     ├── debts.ts               # Debt lifecycle: generation, payments, status tracking

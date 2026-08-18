@@ -17,10 +17,16 @@ import {
   debtStatusLabel,
   debtStatusColor,
 } from '../storage/debts';
+import type { Debt, DebtorGroup, CanUndoReNetResult } from '../storage/types';
 import { Btn, formatMoney } from '../components/UI';
+import type { Colors } from '../components/UI';
 import { useTheme } from '../theme/ThemeContext';
 
-function buildWhatsAppText(groups) {
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function buildWhatsAppText(groups: DebtorGroup[]): string {
   if (groups.length === 0) return '🤝 No hay deudas pendientes.';
 
   let text = `💳 RESUMEN DE PAGOS PENDIENTES\n`;
@@ -28,7 +34,7 @@ function buildWhatsAppText(groups) {
   groups.forEach(group => {
     text += `\n${group.player.name} paga: $${group.totalPending.toLocaleString('es-AR')}\n`;
 
-    const byCreditor = {};
+    const byCreditor: Record<string, { name: string; total: number }> = {};
     group.debts.forEach(d => {
       const key = d.toPlayer.id;
       if (!byCreditor[key]) byCreditor[key] = { name: d.toPlayer.name, total: 0 };
@@ -44,7 +50,14 @@ function buildWhatsAppText(groups) {
 }
 
 // ─── Modal de pago ────────────────────────────────────────────
-function PaymentModal({ debt, visible, onClose, onPaid }) {
+interface PaymentModalProps {
+  debt: Debt | null;
+  visible: boolean;
+  onClose: () => void;
+  onPaid: () => void;
+}
+
+function PaymentModal({ debt, visible, onClose, onPaid }: PaymentModalProps) {
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
@@ -55,6 +68,7 @@ function PaymentModal({ debt, visible, onClose, onPaid }) {
   function reset() { setAmount(''); setNote(''); }
 
   async function handlePartial() {
+    if (!debt) return;
     const val = parseFloat(amount.replace(',', '.'));
     if (isNaN(val) || val <= 0) {
       Alert.alert('Monto inválido', 'Ingresá un monto mayor a cero.');
@@ -72,6 +86,7 @@ function PaymentModal({ debt, visible, onClose, onPaid }) {
   }
 
   async function handleFull() {
+    if (!debt) return;
     Alert.alert(
       'Marcar como saldada',
       `¿Confirmar que ${debt.fromPlayer.name} pagó todo (${formatMoney(debt.pendingAmount)})?`,
@@ -167,7 +182,12 @@ function PaymentModal({ debt, visible, onClose, onPaid }) {
 }
 
 // ─── Card de deuda individual ─────────────────────────────────
-function DebtCard({ debt, onPay }) {
+interface DebtCardProps {
+  debt: Debt;
+  onPay: (debt: Debt) => void;
+}
+
+function DebtCard({ debt, onPay }: DebtCardProps) {
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const paidPct = Math.round(
@@ -236,10 +256,10 @@ export default function PendingDebtsScreen() {
   const insets = useSafeAreaInsets();
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
-  const [groups, setGroups]         = useState([]);
+  const [groups, setGroups]         = useState<DebtorGroup[]>([]);
   const [loading, setLoading]       = useState(true);
-  const [payModal, setPayModal]     = useState(null);
-  const [undoState, setUndoState]   = useState({ canUndo: false, reason: null }); // estado del botón deshacer
+  const [payModal, setPayModal]     = useState<Debt | null>(null);
+  const [undoState, setUndoState]   = useState<CanUndoReNetResult>({ canUndo: false, reason: null }); // estado del botón deshacer
   const [canReorganize, setCanReorganize] = useState(false);
 
   useFocusEffect(
@@ -264,7 +284,7 @@ export default function PendingDebtsScreen() {
     try {
       await Share.share({ message: text, title: 'Deudas pendientes' });
     } catch (err) {
-      Alert.alert('Error', err.message);
+      Alert.alert('Error', getErrorMessage(err));
     }
   }
 
@@ -299,7 +319,7 @@ export default function PendingDebtsScreen() {
               await undoReNet();
               load();
             } catch (err) {
-              Alert.alert('No se puede deshacer', err.message);
+              Alert.alert('No se puede deshacer', getErrorMessage(err));
             }
           }
         }
@@ -405,7 +425,7 @@ export default function PendingDebtsScreen() {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return StyleSheet.create({
   container:     { flex: 1, backgroundColor: C.bg },
   scrollContent: { padding: 16 },

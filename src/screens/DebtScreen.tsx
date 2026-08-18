@@ -11,10 +11,13 @@ import {
   getAllDebts, registerPayment, markAsPaid,
   debtStatusLabel, debtStatusColor,
 } from '../storage/debts';
+import type { Debt } from '../storage/types';
 import { Card, Btn, formatMoney } from '../components/UI';
+import type { Colors } from '../components/UI';
 import { useTheme } from '../theme/ThemeContext';
+import type { ScreenProps } from '../navigation/types';
 
-export default function DebtScreen({ route }) {
+export default function DebtScreen({ route }: ScreenProps<'Debts'>) {
   const { session } = route.params;
   const insets      = useSafeAreaInsets();
   const { C } = useTheme();
@@ -22,8 +25,8 @@ export default function DebtScreen({ route }) {
   const debtsResult = calcDebts(session);
   const allHaveResult = session.participants.every(p => p.finalAmount !== null);
 
-  const [sessionDebts, setSessionDebts] = useState([]);
-  const [payModal, setPayModal]         = useState(null);
+  const [sessionDebts, setSessionDebts] = useState<Debt[]>([]);
+  const [payModal, setPayModal]         = useState<Debt | null>(null);
   const [payAmount, setPayAmount]       = useState('');
   const [payNote, setPayNote]           = useState('');
   const [loading, setLoading]           = useState(false);
@@ -35,13 +38,14 @@ export default function DebtScreen({ route }) {
 
   useFocusEffect(useCallback(() => { loadDebts(); }, [loadDebts]));
 
-  function findStoredDebt(from, to) {
+  function findStoredDebt(from: string, to: string): Debt | undefined {
     return sessionDebts.find(
       d => d.fromPlayer.name === from && d.toPlayer.name === to
     );
   }
 
   async function handlePartialPay() {
+    if (!payModal) return;
     const val = parseFloat(payAmount.replace(',', '.'));
     if (isNaN(val) || val <= 0) {
       Alert.alert('Monto inválido'); return;
@@ -57,6 +61,7 @@ export default function DebtScreen({ route }) {
   }
 
   async function handleFullPay() {
+    if (!payModal) return;
     Alert.alert(
       'Saldar deuda',
       `¿Confirmar que ${payModal.fromPlayer.name} pagó todo (${formatMoney(payModal.pendingAmount)})?`,
@@ -64,6 +69,7 @@ export default function DebtScreen({ route }) {
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Confirmar', onPress: async () => {
+            if (!payModal) return;
             setLoading(true);
             await markAsPaid(payModal.id);
             setLoading(false);
@@ -266,7 +272,7 @@ export default function DebtScreen({ route }) {
   );
 }
 
-function createStyles(C) {
+function createStyles(C: Colors) {
   return StyleSheet.create({
   container:    { flex: 1, backgroundColor: C.bg },
   warnBox:      {
