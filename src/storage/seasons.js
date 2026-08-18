@@ -9,34 +9,38 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { genId, safeParse } from './id';
+import { withLock } from './lock';
 
 const SEASONS_KEY  = 'poker_seasons';
 const SESSIONS_KEY = 'poker_sessions';
 
 async function ensureInitialized() {
-  const raw = await AsyncStorage.getItem(SEASONS_KEY);
-  if (raw !== null) return safeParse(raw, []);
+  return withLock(SEASONS_KEY, async () => {
+    const raw = await AsyncStorage.getItem(SEASONS_KEY);
+    if (raw !== null) return safeParse(raw, []);
 
-  // Primera vez con esta versión: migrar sesiones existentes a "Temporada 1".
-  const sessionsRaw = await AsyncStorage.getItem(SESSIONS_KEY);
-  const sessions = safeParse(sessionsRaw, []);
-  const now = new Date().toISOString();
-  const firstSeason = {
-    id: genId(),
-    name: 'Temporada 1',
-    createdAt: now,
-    closedAt: null,
-    status: 'active',
-  };
+    // Primera vez con esta versión: migrar sesiones existentes a "Temporada 1".
+    const firstSeason = {
+      id: genId(),
+      name: 'Temporada 1',
+      createdAt: new Date().toISOString(),
+      closedAt: null,
+      status: 'active',
+    };
 
-  if (sessions.length > 0) {
-    const migrated = sessions.map(s => s.seasonId ? s : { ...s, seasonId: firstSeason.id });
-    await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(migrated));
-  }
+    await withLock(SESSIONS_KEY, async () => {
+      const sessionsRaw = await AsyncStorage.getItem(SESSIONS_KEY);
+      const sessions = safeParse(sessionsRaw, []);
+      if (sessions.length > 0) {
+        const migrated = sessions.map(s => s.seasonId ? s : { ...s, seasonId: firstSeason.id });
+        await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(migrated));
+      }
+    });
 
-  const seasons = [firstSeason];
-  await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(seasons));
-  return seasons;
+    const seasons = [firstSeason];
+    await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(seasons));
+    return seasons;
+  });
 }
 
 export async function getSeasons() {
@@ -55,21 +59,24 @@ export async function getActiveSeason() {
  * para volver a activar una ya cerrada).
  */
 export async function createSeason(name) {
-  const seasons = await ensureInitialized();
-  const now = new Date().toISOString();
-  const updated = seasons.map(s =>
-    s.status === 'active' ? { ...s, status: 'closed', closedAt: now } : s
-  );
-  const newSeason = {
-    id: genId(),
-    name: name.trim(),
-    createdAt: now,
-    closedAt: null,
-    status: 'active',
-  };
-  updated.push(newSeason);
-  await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
-  return newSeason;
+  await ensureInitialized();
+  return withLock(SEASONS_KEY, async () => {
+    const seasons = safeParse(await AsyncStorage.getItem(SEASONS_KEY), []);
+    const now = new Date().toISOString();
+    const updated = seasons.map(s =>
+      s.status === 'active' ? { ...s, status: 'closed', closedAt: now } : s
+    );
+    const newSeason = {
+      id: genId(),
+      name: name.trim(),
+      createdAt: now,
+      closedAt: null,
+      status: 'active',
+    };
+    updated.push(newSeason);
+    await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
+    return newSeason;
+  });
 }
 
 /**
@@ -79,19 +86,22 @@ export async function createSeason(name) {
  * ya funciona igual, esto solo cambia cuál se muestra como "Activa".
  */
 export async function reopenSeason(seasonId) {
-  const seasons = await ensureInitialized();
-  const target = seasons.find(s => s.id === seasonId);
-  if (!target) throw new Error('Temporada no encontrada.');
-  if (target.status === 'active') return seasons;
+  await ensureInitialized();
+  return withLock(SEASONS_KEY, async () => {
+    const seasons = safeParse(await AsyncStorage.getItem(SEASONS_KEY), []);
+    const target = seasons.find(s => s.id === seasonId);
+    if (!target) throw new Error('Temporada no encontrada.');
+    if (target.status === 'active') return seasons;
 
-  const now = new Date().toISOString();
-  const updated = seasons.map(s => {
-    if (s.id === seasonId) return { ...s, status: 'active', closedAt: null };
-    if (s.status === 'active') return { ...s, status: 'closed', closedAt: now };
-    return s;
+    const now = new Date().toISOString();
+    const updated = seasons.map(s => {
+      if (s.id === seasonId) return { ...s, status: 'active', closedAt: null };
+      if (s.status === 'active') return { ...s, status: 'closed', closedAt: now };
+      return s;
+    });
+    await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
+    return updated;
   });
-  await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
-  return updated;
 }
 
 /**
@@ -100,18 +110,21 @@ export async function reopenSeason(seasonId) {
  * Temporadas maneja bien ese estado.
  */
 export async function deleteSeason(seasonId) {
-  const seasons = await ensureInitialized();
-  const target = seasons.find(s => s.id === seasonId);
-  if (!target) throw new Error('Temporada no encontrada.');
+  await ensureInitialized();
+  return withLock(SEASONS_KEY, async () => {
+    const seasons = safeParse(await AsyncStorage.getItem(SEASONS_KEY), []);
+    const target = seasons.find(s => s.id === seasonId);
+    if (!target) throw new Error('Temporada no encontrada.');
 
-  const sessionsRaw = await AsyncStorage.getItem(SESSIONS_KEY);
-  const sessions = safeParse(sessionsRaw, []);
-  const hasSessions = sessions.some(s => s.seasonId === seasonId);
-  if (hasSessions) {
-    throw new Error('No se puede borrar: esta temporada tiene partidas.');
-  }
+    const sessionsRaw = await AsyncStorage.getItem(SESSIONS_KEY);
+    const sessions = safeParse(sessionsRaw, []);
+    const hasSessions = sessions.some(s => s.seasonId === seasonId);
+    if (hasSessions) {
+      throw new Error('No se puede borrar: esta temporada tiene partidas.');
+    }
 
-  const updated = seasons.filter(s => s.id !== seasonId);
-  await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
-  return updated;
+    const updated = seasons.filter(s => s.id !== seasonId);
+    await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
+    return updated;
+  });
 }
