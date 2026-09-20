@@ -62,6 +62,15 @@ function isValidBackup(payload: unknown): payload is BackupPayload {
     .every(key => Array.isArray((data as Record<string, unknown>)[key]));
 }
 
+/**
+ * createSeason/closeSeason/reopenSeason garantizan en código que nunca haya
+ * más de una temporada activa a la vez; un JSON de backup editado a mano
+ * podría romper ese invariante, así que se valida aparte de la forma.
+ */
+function hasValidSeasonsInvariant(data: BackupData): boolean {
+  return data.poker_seasons.filter(s => s?.status === 'active').length <= 1;
+}
+
 interface InfoModalProps {
   visible: boolean;
   onClose: () => void;
@@ -118,6 +127,11 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
 
     if (!isValidBackup(payload)) {
       Alert.alert('Archivo inválido', 'Ese archivo no tiene el formato de un backup de Poker Control.');
+      return;
+    }
+
+    if (!hasValidSeasonsInvariant(payload.data)) {
+      Alert.alert('Archivo inválido', 'El backup tiene más de una temporada activa al mismo tiempo, lo cual no es válido.');
       return;
     }
 
