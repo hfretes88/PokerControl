@@ -437,6 +437,9 @@ export default function StatsScreen({ route }: ScreenProps<'Stats'>) {
             <Text style={styles.adjAddText}>+ Agregar</Text>
           </TouchableOpacity>
         </View>
+        {seasonId && (
+          <Text style={styles.globalNote}>No dependen de la temporada, son siempre globales.</Text>
+        )}
 
         {manualDebts.length === 0 ? (
           <Text style={styles.adjEmpty}>Sin deudas previas registradas</Text>
@@ -504,7 +507,10 @@ export default function StatsScreen({ route }: ScreenProps<'Stats'>) {
           </>
         )}
 
-        <Text style={styles.sectionTitle}>Deudas pendientes</Text>
+        <Text style={[styles.sectionTitle, seasonId && styles.mb0]}>Deudas pendientes</Text>
+        {seasonId && (
+          <Text style={styles.globalNote}>No dependen de la temporada, son siempre globales.</Text>
+        )}
         <Card>
           <PlayerDebtsSection key={refreshTick} playerId={playerId} />
         </Card>
@@ -588,6 +594,7 @@ function createStyles(C: Colors) {
     adjAddBtnEmpty: { marginTop: 20, borderWidth: 1, borderColor: C.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
     adjAddText: { fontSize: 15, color: C.accent, fontWeight: '700' },
     adjEmpty: { fontSize: 15, color: C.gray, marginBottom: 12 },
+    globalNote: { fontSize: 12, color: C.gray, marginBottom: 10, fontStyle: 'italic' },
     adjRow: { flexDirection: 'row', alignItems: 'center' },
     adjDesc: { fontSize: 16, fontWeight: '600', color: C.white, marginBottom: 3 },
     adjAmount: { fontSize: 18, fontWeight: '700', marginRight: 4 },

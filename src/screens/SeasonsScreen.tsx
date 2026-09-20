@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getSessions } from '../storage/storage';
-import { getSeasons, createSeason, deleteSeason, reopenSeason } from '../storage/seasons';
-import type { Season } from '../storage/types';
-import { Card, Btn } from '../components/UI';
+import { getSessions, getGlobalRanking } from '../storage/storage';
+import { getSeasons, createSeason, deleteSeason, reopenSeason, renameSeason, closeSeason } from '../storage/seasons';
+import type { Season, RankingEntry } from '../storage/types';
+import { Card, Btn, formatMoney } from '../components/UI';
 import type { Colors } from '../components/UI';
 import InfoModal from '../components/InfoModal';
 import { createGlobalStyles } from '../components/GlobalStyles';
@@ -29,19 +29,36 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
   const styles = useMemo(() => createStyles(C), [C]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [sessionCounts, setSessionCounts] = useState<Record<string, number>>({});
+  const [openSessionCounts, setOpenSessionCounts] = useState<Record<string, number>>({});
+  const [seasonLeaders, setSeasonLeaders] = useState<Record<string, RankingEntry | null>>({});
   const [aboutVisible, setAboutVisible] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [seasonName, setSeasonName] = useState('');
+  const [renameTarget, setRenameTarget] = useState<Season | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [sortAsc, setSortAsc] = useState(false);
 
   const load = useCallback(async () => {
     const [seasonList, sessions] = await Promise.all([getSeasons(), getSessions()]);
     setSeasons(seasonList);
     const counts: Record<string, number> = {};
+    const openCounts: Record<string, number> = {};
     sessions.forEach(s => {
       if (!s.seasonId) return;
       counts[s.seasonId] = (counts[s.seasonId] || 0) + 1;
+      if (s.status === 'active') openCounts[s.seasonId] = (openCounts[s.seasonId] || 0) + 1;
     });
     setSessionCounts(counts);
+    setOpenSessionCounts(openCounts);
+
+    const leaderEntries = await Promise.all(
+      seasonList.map(async (s): Promise<readonly [string, RankingEntry | null]> => {
+        if (!counts[s.id]) return [s.id, null];
+        const ranking = await getGlobalRanking(s.id);
+        return [s.id, ranking[0] || null];
+      })
+    );
+    setSeasonLeaders(Object.fromEntries(leaderEntries));
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -85,6 +102,58 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
     );
   }
 
+  function openRenameModal(season: Season) {
+    setRenameTarget(season);
+    setRenameValue(season.name);
+  }
+
+  function resetRenameModal() {
+    setRenameTarget(null);
+    setRenameValue('');
+  }
+
+  async function handleRename() {
+    if (!renameTarget) return;
+    const name = renameValue.trim();
+    if (!name) {
+      Alert.alert('Nombre inválido', 'Ingresá un nombre para la temporada.');
+      return;
+    }
+    try {
+      await renameSeason(renameTarget.id, name);
+      resetRenameModal();
+      load();
+    } catch (e) {
+      Alert.alert('No se pudo renombrar', getErrorMessage(e));
+    }
+  }
+
+  function handleCloseSeason(season: Season) {
+    const openCount = openSessionCounts[season.id] || 0;
+    const openWarning = openCount > 0
+      ? `\n\n⚠️ Hay ${openCount} partida${openCount === 1 ? '' : 's'} sin cerrar en esta temporada; vas a poder seguir cerrándolas después.`
+      : '';
+    Alert.alert(
+      'Cerrar temporada',
+      `¿Cerrar "${season.name}"? No va a quedar ninguna temporada activa hasta que crees o reabras otra.${openWarning}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await closeSeason(season.id);
+              load();
+            } catch (e) {
+              Alert.alert('No se pudo cerrar', getErrorMessage(e));
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function handleReopenSeason(season: Season) {
     Alert.alert(
       'Reabrir temporada',
@@ -103,6 +172,7 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
   }
 
   const activeSeason = seasons.find(s => s.status === 'active') || null;
+  const displaySeasons = sortAsc ? [...seasons].reverse() : seasons;
   const headerPaddingTop = insets.top + 12;
   const fabBottom = insets.bottom + 20;
 
@@ -131,8 +201,19 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
         </View>
       </View>
 
+      {seasons.length > 1 && (
+        <TouchableOpacity
+          onPress={() => setSortAsc(v => !v)}
+          style={styles.sortBtn}
+          hitSlop={8}>
+          <Text style={styles.sortBtnText}>
+            {sortAsc ? '↑ Más antiguas primero' : '↓ Más nuevas primero'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <FlatList
-        data={seasons}
+        data={displaySeasons}
         keyExtractor={item => item.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: fabBottom + 70 }]}
         ListEmptyComponent={
@@ -147,6 +228,7 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
         }
         renderItem={({ item }) => {
           const count = sessionCounts[item.id] || 0;
+          const leader = seasonLeaders[item.id];
           const closedLabel = item.closedAt
             ? new Date(item.closedAt).toLocaleDateString('es-AR')
             : 'en curso';
@@ -162,6 +244,11 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
                       {new Date(item.createdAt).toLocaleDateString('es-AR')} – {closedLabel}
                       {'  ·  '}{count} partida{count === 1 ? '' : 's'}
                     </Text>
+                    {leader && (
+                      <Text style={styles.leaderText}>
+                        🏆 {leader.name} {leader.sessionBalance > 0 ? '+' : ''}{formatMoney(leader.sessionBalance)}
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.rowRight}>
                     <View style={[styles.statusBadge,
@@ -172,6 +259,20 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
                       </Text>
                     </View>
                     <View style={styles.rowActions}>
+                      <TouchableOpacity
+                        onPress={() => openRenameModal(item)}
+                        hitSlop={8}
+                        style={styles.rowActionBtn}>
+                        <Text style={styles.rowActionIcon}>✏️</Text>
+                      </TouchableOpacity>
+                      {item.status === 'active' && (
+                        <TouchableOpacity
+                          onPress={() => handleCloseSeason(item)}
+                          hitSlop={8}
+                          style={styles.rowActionBtn}>
+                          <Text style={styles.rowActionIcon}>🔒</Text>
+                        </TouchableOpacity>
+                      )}
                       {item.status === 'closed' && (
                         <TouchableOpacity
                           onPress={() => handleReopenSeason(item)}
@@ -239,6 +340,9 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
               <View style={styles.warnBox}>
                 <Text style={styles.warnText}>
                   ⚠️ Esto va a cerrar "{activeSeason.name}" y arrancar podio y estadísticas en cero. Las deudas pendientes no se ven afectadas.
+                  {(openSessionCounts[activeSeason.id] || 0) > 0 && (
+                    ` Tiene ${openSessionCounts[activeSeason.id]} partida${openSessionCounts[activeSeason.id] === 1 ? '' : 's'} sin cerrar; vas a poder seguir cerrándolas después.`
+                  )}
                 </Text>
               </View>
             )}
@@ -246,6 +350,31 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
             <View style={styles.modalBtns}>
               <Btn label="Cancelar" onPress={resetModal} color={C.muted} small />
               <Btn label="Crear temporada" onPress={handleCreate} small />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={!!renameTarget} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+            <Text style={styles.modalTitle}>Renombrar temporada</Text>
+
+            <Text style={styles.fieldLabel}>NOMBRE</Text>
+            <TextInput
+              style={styles.input}
+              value={renameValue}
+              onChangeText={setRenameValue}
+              placeholderTextColor={C.muted}
+              selectTextOnFocus
+              autoFocus
+            />
+
+            <View style={styles.modalBtns}>
+              <Btn label="Cancelar" onPress={resetRenameModal} color={C.muted} small />
+              <Btn label="Guardar" onPress={handleRename} small />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -274,11 +403,14 @@ function createStyles(C: Colors) {
     },
     playersBtnText: { fontSize: 15, color: C.white, fontWeight: '600' },
     mr8: { marginRight: 8 },
+    sortBtn: { paddingHorizontal: 16, paddingTop: 12 },
+    sortBtnText: { fontSize: 13, color: C.accent, fontWeight: '600' },
     listContent: { padding: 16, flexGrow: 1 },
     flex1: { flex: 1 },
 
     sessionName: { fontSize: 18, fontWeight: '700', color: C.white, marginBottom: 3 },
     sessionMeta: { fontSize: 13, color: C.gray },
+    leaderText: { fontSize: 13, color: C.accent, fontWeight: '600', marginTop: 4 },
     rowRight: { alignItems: 'flex-end', gap: 6 },
     statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     activeBadge: { backgroundColor: C.infoSoftBg },

@@ -81,6 +81,47 @@ export async function createSeason(name: string): Promise<Season> {
 }
 
 /**
+ * Renombra una temporada existente, sin tocar su estado.
+ */
+export async function renameSeason(seasonId: string, name: string): Promise<Season[]> {
+  await ensureInitialized();
+  return withLock(SEASONS_KEY, async () => {
+    const seasons = safeParse<Season[]>(await AsyncStorage.getItem(SEASONS_KEY), []);
+    const target = seasons.find(s => s.id === seasonId);
+    if (!target) throw new Error('Temporada no encontrada.');
+
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('El nombre no puede estar vacío.');
+
+    const updated = seasons.map(s => s.id === seasonId ? { ...s, name: trimmed } : s);
+    await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
+    return updated;
+  });
+}
+
+/**
+ * Cierra la temporada activa sin activar ninguna otra (a diferencia de
+ * createSeason/reopenSeason). La app queda sin temporada activa hasta que
+ * se cree o reabra una — SeasonsScreen maneja bien ese estado.
+ */
+export async function closeSeason(seasonId: string): Promise<Season[]> {
+  await ensureInitialized();
+  return withLock(SEASONS_KEY, async () => {
+    const seasons = safeParse<Season[]>(await AsyncStorage.getItem(SEASONS_KEY), []);
+    const target = seasons.find(s => s.id === seasonId);
+    if (!target) throw new Error('Temporada no encontrada.');
+    if (target.status !== 'active') throw new Error('La temporada ya está cerrada.');
+
+    const now = new Date().toISOString();
+    const updated = seasons.map(s =>
+      s.id === seasonId ? { ...s, status: 'closed' as const, closedAt: now } : s
+    );
+    await AsyncStorage.setItem(SEASONS_KEY, JSON.stringify(updated));
+    return updated;
+  });
+}
+
+/**
  * Vuelve a marcar como activa una temporada cerrada, cerrando automáticamente
  * la que estuviera activa (mismo comportamiento que createSeason). No hace
  * falta para poder seguir agregando partidas a una temporada cerrada — eso
