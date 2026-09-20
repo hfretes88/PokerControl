@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getSeasons, getActiveSeason, createSeason, deleteSeason, reopenSeason } from '../seasons';
+import { getSeasons, getActiveSeason, createSeason, deleteSeason, reopenSeason, renameSeason, closeSeason } from '../seasons';
 
 beforeEach(async () => {
   await AsyncStorage.clear();
@@ -140,6 +140,50 @@ describe('reopenSeason', () => {
   it('lanza error si la temporada no existe', async () => {
     await getSeasons();
     await expect(reopenSeason('inexistente')).rejects.toThrow(/no encontrada/i);
+  });
+});
+
+describe('renameSeason', () => {
+  it('renombra una temporada existente', async () => {
+    const created = await createSeason('Original');
+    const updated = await renameSeason(created.id, 'Renombrada');
+
+    expect(updated.find(s => s.id === created.id).name).toBe('Renombrada');
+  });
+
+  it('recorta espacios y rechaza nombre vacío', async () => {
+    const created = await createSeason('Original');
+    const updated = await renameSeason(created.id, '  Con espacios  ');
+    expect(updated.find(s => s.id === created.id).name).toBe('Con espacios');
+
+    await expect(renameSeason(created.id, '   ')).rejects.toThrow(/vacío/i);
+  });
+
+  it('lanza error si la temporada no existe', async () => {
+    await getSeasons();
+    await expect(renameSeason('inexistente', 'X')).rejects.toThrow(/no encontrada/i);
+  });
+});
+
+describe('closeSeason', () => {
+  it('cierra la temporada activa sin activar otra', async () => {
+    const active = await getActiveSeason(); // "Temporada 1"
+    await closeSeason(active.id);
+
+    const seasons = await getSeasons();
+    expect(seasons.find(s => s.id === active.id).status).toBe('closed');
+    expect(seasons.filter(s => s.status === 'active')).toHaveLength(0);
+  });
+
+  it('lanza error si la temporada ya está cerrada', async () => {
+    const active = await getActiveSeason();
+    await closeSeason(active.id);
+    await expect(closeSeason(active.id)).rejects.toThrow(/ya está cerrada/i);
+  });
+
+  it('lanza error si la temporada no existe', async () => {
+    await getSeasons();
+    await expect(closeSeason('inexistente')).rejects.toThrow(/no encontrada/i);
   });
 });
 
