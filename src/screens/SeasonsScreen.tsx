@@ -36,6 +36,7 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
   const [seasonName, setSeasonName] = useState('');
   const [renameTarget, setRenameTarget] = useState<Season | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [sortAsc, setSortAsc] = useState(false);
 
   const load = useCallback(async () => {
     const [seasonList, sessions] = await Promise.all([getSeasons(), getSessions()]);
@@ -171,6 +172,7 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
   }
 
   const activeSeason = seasons.find(s => s.status === 'active') || null;
+  const displaySeasons = sortAsc ? [...seasons].reverse() : seasons;
   const headerPaddingTop = insets.top + 12;
   const fabBottom = insets.bottom + 20;
 
@@ -199,8 +201,19 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
         </View>
       </View>
 
+      {seasons.length > 1 && (
+        <TouchableOpacity
+          onPress={() => setSortAsc(v => !v)}
+          style={styles.sortBtn}
+          hitSlop={8}>
+          <Text style={styles.sortBtnText}>
+            {sortAsc ? '↑ Más antiguas primero' : '↓ Más nuevas primero'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <FlatList
-        data={seasons}
+        data={displaySeasons}
         keyExtractor={item => item.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: fabBottom + 70 }]}
         ListEmptyComponent={
@@ -390,6 +403,8 @@ function createStyles(C: Colors) {
     },
     playersBtnText: { fontSize: 15, color: C.white, fontWeight: '600' },
     mr8: { marginRight: 8 },
+    sortBtn: { paddingHorizontal: 16, paddingTop: 12 },
+    sortBtnText: { fontSize: 13, color: C.accent, fontWeight: '600' },
     listContent: { padding: 16, flexGrow: 1 },
     flex1: { flex: 1 },
 
