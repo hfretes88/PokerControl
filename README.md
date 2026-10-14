@@ -18,7 +18,7 @@ A mobile app to manage amateur poker games among friends. Track buy-ins, registe
 - **Pending debts** — Global view of all outstanding debts grouped by debtor, with running totals across multiple sessions.
 - **Stats** — Per-player history with win rate, best/worst game, and a cumulative balance line chart, scoped to a season or all-time.
 - **Ranking** — Leaderboard sorted by balance with a podium for the top 3 and a mini trend chart per player, scoped to a season or all-time.
-- **Reports** — Buys (most buys, rebuy rate, fastest rebuy, buys by hour), comebacks and streaks (players who climbed back from negative, biggest comeback, in-night comebacks, current/longest streaks, biggest drawdown), performance (ROI, average per game, consistency, best/worst nights), games (biggest pots, longest games, attendance, player of the month), debts (who pays whom, fastest payers, outstanding) and a season comparison. Scoped to a season or all-time; computed on the fly from existing data.
+- **Reports** — Buys (most buys, rebuy rate, fastest rebuy, buys by hour), comebacks and streaks (players who climbed back from negative, biggest comeback, in-night comebacks, current/longest streaks, biggest drawdown), performance (ROI, average per game, consistency, best/worst nights), games (biggest pots, longest games, attendance, player of the month), debts (who pays whom, fastest payers, outstanding) and a season comparison. Scoped to a season or all-time; computed on the fly from existing data, and exportable as a PDF.
 - **WhatsApp sharing** — Share a formatted game summary or pending debts list directly to a WhatsApp chat.
 - **Backup** — Export all data (players, sessions, seasons, debts) as a JSON file, and import a previously exported backup to restore it — this replaces all data currently on the device.
 
@@ -57,6 +57,11 @@ src/
 │   ├── RankingScreen.tsx      # Leaderboard with podium, scoped to a season or all-time
 │   ├── ReportsScreen.tsx      # Reports by category, scoped to a season or all-time
 │   └── StatsScreen.tsx        # Per-player stats, balance chart, debt summary
+├── reports/
+│   ├── reportSections.ts      # Content of each reports tab, shared by the screen and the PDF
+│   └── reportsPdf.ts          # PDF export of the reports (pdf-lib)
+├── utils/
+│   └── saveFile.ts            # Writes a file and opens the native "Save as" / share dialog
 ├── navigation/
 │   └── types.ts               # RootStackParamList — typed route params for every screen
 └── storage/                   # TypeScript

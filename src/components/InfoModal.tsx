@@ -1,14 +1,14 @@
 import React, { useState, useMemo, ReactNode } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
-  ScrollView, Share, Alert, ActivityIndicator, Platform
+  ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { pick, types, isErrorWithCode, errorCodes, saveDocuments } from '@react-native-documents/picker';
+import { pick, types, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { useTheme } from '../theme/ThemeContext';
 import type { Colors } from './UI';
-import RNFS from 'react-native-fs';
+import { saveFile } from '../utils/saveFile';
 import type { Player, Session, Debt, Season } from '../storage/types';
 
 const APP_VERSION = '1.0.0';
@@ -148,31 +148,14 @@ export default function InfoModal({ visible, onClose, title, children, onImporte
   async function handleExport() {
     setExporting(true);
     try {
-      const payload  = await exportAllData();
-      const json     = JSON.stringify(payload, null, 2);
-      const filename = `PokerControl_${new Date().toISOString().slice(0, 10)}.json`;
-      const path     = `${RNFS.DocumentDirectoryPath}/${filename}`;
-
-      await RNFS.writeFile(path, json, 'utf8');
-
-      if (Platform.OS === 'android') {
-        // Share.share con url: file:// no funciona en Android sin un FileProvider:
-        // termina compartiendo el JSON como texto plano en vez del archivo.
-        // saveDocuments abre el diálogo nativo "Guardar como" y sí guarda un
-        // archivo .json real (en Descargas, Drive, etc.).
-        await saveDocuments({
-          sourceUris: [encodeURI(`file://${path}`)],
-          fileName:   filename,
-          mimeType:   'application/json',
-        });
-      } else {
-        // iOS comparte directo como archivo
-        await Share.share({
-          title: 'PokerControl — Backup',
-          url:   path,
-        });
-      }
-
+      const payload = await exportAllData();
+      await saveFile({
+        filename: `PokerControl_${new Date().toISOString().slice(0, 10)}.json`,
+        contents: JSON.stringify(payload, null, 2),
+        encoding: 'utf8',
+        mimeType: 'application/json',
+        title:    'PokerControl — Backup',
+      });
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       if (getErrorMessage(err) !== 'User did not share') {

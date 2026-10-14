@@ -1,59 +1,27 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { getReports } from '../storage/reports';
-import type { Reports, PlayerReport, CountBucket } from '../storage/reports';
+import type { Reports, CountBucket, SeasonSummary } from '../storage/reports';
+import { buildSections, tabsFor, decimal, signed, plural } from '../reports/reportSections';
+import type { ReportTab, ReportRow, ReportSection, ReportStat, Tone } from '../reports/reportSections';
+import { buildReportsPdf } from '../reports/reportsPdf';
+import { saveFile } from '../utils/saveFile';
 import { Card, formatMoney } from '../components/UI';
 import type { Colors } from '../components/UI';
 import { createGlobalStyles } from '../components/GlobalStyles';
 import { useTheme } from '../theme/ThemeContext';
 import type { ScreenProps } from '../navigation/types';
 
-type Tab = 'compras' | 'remontadas' | 'rendimiento' | 'partidas' | 'deudas' | 'temporadas';
-
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: 'compras', label: '🪙 Compras' },
-  { key: 'remontadas', label: '📈 Remontadas' },
-  { key: 'rendimiento', label: '🎯 Rendimiento' },
-  { key: 'partidas', label: '🃏 Partidas' },
-  { key: 'deudas', label: '💳 Deudas' },
-  { key: 'temporadas', label: '🗓️ Temporadas' },
-];
-
 const TOP_N = 5;
-/** Partidas mínimas para entrar en rankings de promedios (evita que 1 noche distorsione). */
-const MIN_GAMES = 3;
 
-interface Row {
-  key: string;
-  name: string;
-  value: string;
-  valueColor?: string;
-  detail?: string;
-  onPress?: () => void;
-}
-
-function signed(n: number): string {
-  return `${n > 0 ? '+' : ''}${formatMoney(n)}`;
-}
-
-function formatMinutes(m: number): string {
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  const rest = m % 60;
-  return rest === 0 ? `${h} h` : `${h} h ${String(rest).padStart(2, '0')} min`;
-}
-
-function decimal(n: number): string {
-  return n.toLocaleString('es-AR');
-}
-
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
+function toneColor(C: Colors, tone?: Tone): string {
+  return tone === 'positive' ? C.green : tone === 'negative' ? C.red : C.accent;
 }
 
 export default function ReportsScreen({ navigation, route }: ScreenProps<'Reports'>) {
@@ -62,7 +30,8 @@ export default function ReportsScreen({ navigation, route }: ScreenProps<'Report
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [reports, setReports] = useState<Reports | null>(null);
-  const [tab, setTab] = useState<Tab>('compras');
+  const [tab, setTab] = useState<ReportTab>('compras');
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setReports(await getReports(seasonId));
@@ -70,9 +39,43 @@ export default function ReportsScreen({ navigation, route }: ScreenProps<'Report
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const openPlayer = useCallback((playerId: string, playerName: string) => {
-    navigation.navigate('Stats', { playerId, playerName, seasonId, seasonName });
-  }, [navigation, seasonId, seasonName]);
+  const handleExport = useCallback(async () => {
+    if (!reports) return;
+    setExporting(true);
+    try {
+      const pdf = await buildReportsPdf(reports, seasonId, seasonName);
+      const scope = seasonName ? seasonName.replace(/[^\w-]+/g, '_') : 'historico';
+      await saveFile({
+        filename: `PokerControl_reportes_${scope}_${new Date().toISOString().slice(0, 10)}.pdf`,
+        contents: pdf,
+        encoding: 'base64',
+        mimeType: 'application/pdf',
+        title: 'PokerControl — Reportes',
+      });
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      const message = err instanceof Error ? err.message : String(err);
+      if (message !== 'User did not share') Alert.alert('Error al exportar', message);
+    } finally {
+      setExporting(false);
+    }
+  }, [reports, seasonId, seasonName]);
+
+  const canExport = !!reports && reports.totalSessions > 0;
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: canExport
+        ? () => (
+          <TouchableOpacity onPress={handleExport} disabled={exporting} style={styles.exportBtn}>
+            {exporting
+              ? <ActivityIndicator size="small" color={C.accent} />
+              : <Text style={styles.exportText}>PDF</Text>}
+          </TouchableOpacity>
+        )
+        : undefined,
+    });
+  }, [navigation, canExport, exporting, handleExport, styles, C]);
 
   const openSession = useCallback((sessionId: string) => {
     navigation.navigate('Session', { sessionId });
@@ -102,349 +105,49 @@ export default function ReportsScreen({ navigation, route }: ScreenProps<'Report
     );
   }
 
-  const tabs = seasonId ? TABS.filter(t => t.key !== 'temporadas') : TABS;
-  const players = reports.players;
-  const playerRow = (p: PlayerReport, value: string, detail?: string, valueColor?: string): Row => ({
-    key: p.playerId, name: p.name, value, detail, valueColor,
-    onPress: () => openPlayer(p.playerId, p.name),
-  });
-  const ranked = (filter: (p: PlayerReport) => boolean, sort: (a: PlayerReport, b: PlayerReport) => number) =>
-    players.filter(filter).sort(sort);
-
-  function renderCompras() {
-    return (
-      <>
-        <RankedCard
-          title="Más compras"
-          subtitle="Cantidad total de compras de fichas"
-          rows={ranked(() => true, (a, b) => b.buyCount - a.buyCount).map(p =>
-            playerRow(p, String(p.buyCount), `${plural(p.games, 'partida', 'partidas')} · ${decimal(p.avgBuysPerGame)} por partida`)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Más plata puesta"
-          subtitle="Total comprado en fichas"
-          rows={ranked(() => true, (a, b) => b.totalBought - a.totalBought).map(p =>
-            playerRow(p, formatMoney(p.totalBought), `Promedio ${formatMoney(p.avgBoughtPerGame)} por partida`)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Los que más recompran"
-          subtitle="Partidas en las que compró más de una vez"
-          rows={ranked(p => p.rebuyGames > 0, (a, b) => b.rebuyRate - a.rebuyRate || b.rebuyGames - a.rebuyGames).map(p =>
-            playerRow(p, `${p.rebuyRate}%`, `${p.rebuyGames} de ${plural(p.games, 'partida', 'partidas')}`)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Récord de compras en una noche"
-          rows={ranked(p => p.maxBuysInGame > 1, (a, b) => b.maxBuysInGame - a.maxBuysInGame).map(p =>
-            playerRow(p, String(p.maxBuysInGame), p.maxBuysGame?.sessionName)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Recompra más rápida"
-          subtitle="Tiempo promedio entre la primera y la segunda compra"
-          rows={ranked(p => p.avgMinutesToRebuy !== null, (a, b) => (a.avgMinutesToRebuy ?? 0) - (b.avgMinutesToRebuy ?? 0)).map(p =>
-            playerRow(p, formatMinutes(p.avgMinutesToRebuy ?? 0), plural(p.rebuyGames, 'recompra', 'recompras'))
-          )}
-          styles={styles}
-        />
-        <BarsCard title="Horario de las compras" buckets={reports!.buysByHour} styles={styles} C={C} />
-      </>
-    );
+  function renderSection(section: ReportSection, idx: number) {
+    switch (section.kind) {
+      case 'ranked':
+        return (
+          <RankedCard
+            key={idx}
+            title={section.title}
+            subtitle={section.subtitle}
+            rows={section.rows}
+            empty={section.empty}
+            onOpenSession={openSession}
+            styles={styles}
+            C={C}
+          />
+        );
+      case 'stats':
+        return <StatsCard key={idx} stats={section.stats} note={section.note} styles={styles} C={C} />;
+      case 'bars':
+        return <BarsCard key={idx} title={section.title} buckets={section.buckets} styles={styles} C={C} />;
+      case 'seasons':
+        return section.seasons.map(s => <SeasonCard key={s.seasonId} season={s} styles={styles} C={C} />);
+      case 'note':
+        return <Text key={idx} style={styles.footNote}>{section.text}</Text>;
+    }
   }
-
-  function renderRemontadas() {
-    const recovered = ranked(p => p.recoveries.length > 0, (a, b) => {
-      const lowA = Math.min(...a.recoveries.map(r => r.lowestBalance));
-      const lowB = Math.min(...b.recoveries.map(r => r.lowestBalance));
-      return lowA - lowB;
-    });
-    return (
-      <>
-        <RankedCard
-          title="Salieron de negativo"
-          subtitle="Su acumulado estuvo abajo y volvió a quedar positivo"
-          rows={recovered.map(p => {
-            const deepest = p.recoveries.reduce((d, r) => (r.lowestBalance < d.lowestBalance ? r : d));
-            const times = p.recoveries.length > 1 ? ` · ${p.recoveries.length} veces` : '';
-            return playerRow(
-              p,
-              formatMoney(deepest.lowestBalance),
-              `Recuperó en ${deepest.recoveredAt.sessionName} (${plural(deepest.gamesToRecover, 'partida', 'partidas')})${times}`,
-              C.red,
-            );
-          })}
-          empty="Nadie salió de negativo todavía"
-          styles={styles}
-        />
-        <RankedCard
-          title="Mayor remontada"
-          subtitle="Desde su peor momento hasta hoy"
-          rows={ranked(p => p.comebackAmount > 0, (a, b) => b.comebackAmount - a.comebackAmount).map(p =>
-            playerRow(p, signed(p.comebackAmount), `De ${formatMoney(p.lowestCumulative)} a ${signed(p.balance)}`, C.green)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Remontadas en la noche"
-          subtitle="Compró 2 o más veces y terminó ganando"
-          rows={ranked(p => p.nightComebacks > 0, (a, b) => b.nightComebacks - a.nightComebacks).map(p =>
-            playerRow(p, String(p.nightComebacks), `de ${p.rebuyGames} con recompra`)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Racha actual"
-          rows={ranked(p => p.currentStreak.count >= 2, (a, b) => b.currentStreak.count - a.currentStreak.count).map(p => {
-            const win = p.currentStreak.type === 'win';
-            return playerRow(p, `${win ? '🔥' : '🥶'} ${p.currentStreak.count}`, win ? 'ganadas seguidas' : 'perdidas seguidas', win ? C.green : C.red);
-          })}
-          empty="Nadie tiene una racha de 2 o más"
-          styles={styles}
-        />
-        <RankedCard
-          title="Racha ganadora más larga"
-          rows={ranked(p => p.longestWinStreak > 0, (a, b) => b.longestWinStreak - a.longestWinStreak).map(p =>
-            playerRow(p, String(p.longestWinStreak), 'partidas ganadas seguidas', C.green)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Racha perdedora más larga"
-          rows={ranked(p => p.longestLossStreak > 0, (a, b) => b.longestLossStreak - a.longestLossStreak).map(p =>
-            playerRow(p, String(p.longestLossStreak), 'partidas perdidas seguidas', C.red)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Mayor caída"
-          subtitle="Lo que perdió desde su mejor momento"
-          rows={ranked(p => p.maxDrawdown > 0, (a, b) => b.maxDrawdown - a.maxDrawdown).map(p =>
-            playerRow(p, formatMoney(-p.maxDrawdown), `Mejor momento ${signed(p.highestCumulative)}`, C.red)
-          )}
-          styles={styles}
-        />
-      </>
-    );
-  }
-
-  function renderRendimiento() {
-    const regular = ranked(p => p.games >= MIN_GAMES, (a, b) => a.volatility - b.volatility);
-    return (
-      <>
-        <RankedCard
-          title="Retorno sobre lo comprado"
-          subtitle="Ganancia o pérdida en relación a lo que compró"
-          rows={ranked(() => true, (a, b) => b.roi - a.roi).map(p =>
-            playerRow(p, `${p.roi > 0 ? '+' : ''}${p.roi}%`, `${signed(p.balance)} sobre ${formatMoney(p.totalBought)}`, p.roi >= 0 ? C.green : C.red)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Promedio por partida"
-          rows={ranked(() => true, (a, b) => b.avgBalance - a.avgBalance).map(p =>
-            playerRow(p, signed(p.avgBalance), `${p.wins}G / ${p.losses}P en ${plural(p.games, 'partida', 'partidas')}`, p.avgBalance >= 0 ? C.green : C.red)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Los más regulares"
-          subtitle={`Cuánto varía su resultado de una noche a otra (mín. ${MIN_GAMES} partidas)`}
-          rows={regular.map(p => playerRow(p, `±${formatMoney(p.volatility)}`, `Promedio ${signed(p.avgBalance)}`))}
-          empty={`Nadie tiene ${MIN_GAMES} partidas todavía`}
-          styles={styles}
-        />
-        <RankedCard
-          title="Mejores noches"
-          rows={reports!.biggestWins.map(r => ({
-            key: `${r.sessionId}-${r.playerId}`, name: r.name, value: signed(r.balance), valueColor: C.green,
-            detail: r.sessionName, onPress: () => openSession(r.sessionId),
-          }))}
-          styles={styles}
-        />
-        <RankedCard
-          title="Peores noches"
-          rows={reports!.biggestLosses.map(r => ({
-            key: `${r.sessionId}-${r.playerId}`, name: r.name, value: signed(r.balance), valueColor: C.red,
-            detail: `${r.sessionName} · ${plural(r.buyCount, 'compra', 'compras')}`, onPress: () => openSession(r.sessionId),
-          }))}
-          styles={styles}
-        />
-      </>
-    );
-  }
-
-  function renderPartidas() {
-    const r = reports!;
-    return (
-      <>
-        <Card>
-          <View style={styles.statsRow}>
-            <Stat value={String(r.totalSessions)} label="Partidas" styles={styles} />
-            <View style={styles.statDivider} />
-            <Stat value={formatMoney(r.avgPot)} label="Pozo promedio" styles={styles} />
-            <View style={styles.statDivider} />
-            <Stat value={r.avgDurationMinutes !== null ? formatMinutes(r.avgDurationMinutes) : '—'} label="Duración prom." styles={styles} />
-          </View>
-        </Card>
-        <RankedCard
-          title="Pozos más grandes"
-          rows={[...r.sessions].sort((a, b) => b.pot - a.pot).map(s => ({
-            key: s.sessionId, name: s.sessionName, value: formatMoney(s.pot),
-            detail: `${plural(s.players, 'jugador', 'jugadores')} · ${plural(s.buyCount, 'compra', 'compras')}`,
-            onPress: () => openSession(s.sessionId),
-          }))}
-          styles={styles}
-        />
-        <RankedCard
-          title="Partidas más largas"
-          subtitle="Desde que se creó hasta que se cerró"
-          rows={r.sessions.filter(s => (s.durationMinutes ?? 0) > 0)
-            .sort((a, b) => (b.durationMinutes ?? 0) - (a.durationMinutes ?? 0))
-            .map(s => ({
-              key: s.sessionId, name: s.sessionName, value: formatMinutes(s.durationMinutes ?? 0),
-              detail: new Date(s.date).toLocaleDateString('es-AR'), onPress: () => openSession(s.sessionId),
-            }))}
-          styles={styles}
-        />
-        <RankedCard
-          title="Asistencia"
-          rows={ranked(() => true, (a, b) => b.games - a.games).map(p =>
-            playerRow(p, String(p.games), `${p.attendanceRate}% de las partidas`)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Más partidas seguidas"
-          rows={ranked(p => p.longestAttendanceStreak > 1, (a, b) => b.longestAttendanceStreak - a.longestAttendanceStreak).map(p =>
-            playerRow(p, String(p.longestAttendanceStreak), p.currentAttendanceStreak > 1 ? `Racha actual: ${p.currentAttendanceStreak}` : undefined)
-          )}
-          styles={styles}
-        />
-        <RankedCard
-          title="Jugador del mes"
-          rows={r.monthlyWinners.map(m => ({
-            key: m.month, name: `${m.label} · ${m.name}`, value: signed(m.balance),
-            valueColor: m.balance >= 0 ? C.green : C.red,
-            detail: plural(m.sessions, 'partida', 'partidas'),
-            onPress: () => openPlayer(m.playerId, m.name),
-          }))}
-          styles={styles}
-        />
-        <BarsCard title="Partidas por mes" buckets={r.sessionsByMonth} styles={styles} C={C} />
-        <BarsCard title="Día de la semana" buckets={r.sessionsByWeekday} styles={styles} C={C} />
-      </>
-    );
-  }
-
-  function renderDeudas() {
-    const r = reports!;
-    const payers = r.payers.filter(p => p.paidDebts > 0);
-    return (
-      <>
-        <Card>
-          <View style={styles.statsRow}>
-            <Stat value={formatMoney(r.debtSummary.totalOriginal)} label="Generado" styles={styles} />
-            <View style={styles.statDivider} />
-            <Stat value={formatMoney(r.debtSummary.totalPaid)} label="Pagado" color={C.green} styles={styles} />
-            <View style={styles.statDivider} />
-            <Stat value={formatMoney(r.debtSummary.totalPending)} label="Pendiente" color={C.red} styles={styles} />
-          </View>
-          <Text style={styles.cardNote}>{r.debtSummary.paidPercent}% de lo adeudado ya está pagado</Text>
-        </Card>
-        <RankedCard
-          title="Quién le paga a quién"
-          subtitle="Según el cierre de cada partida, antes de compensar deudas"
-          rows={r.pairFlows.map(f => ({
-            key: `${f.fromId}-${f.toId}`, name: `${f.fromName} → ${f.toName}`, value: formatMoney(f.amount),
-            detail: plural(f.times, 'vez', 'veces'),
-          }))}
-          styles={styles}
-        />
-        <RankedCard
-          title="Pagan más rápido"
-          subtitle="Días promedio hasta saldar una deuda"
-          rows={[...payers].sort((a, b) => a.avgDaysToPay - b.avgDaysToPay).map(p => ({
-            key: p.playerId, name: p.name, value: `${decimal(p.avgDaysToPay)} d`,
-            detail: plural(p.paidDebts, 'deuda saldada', 'deudas saldadas'),
-            onPress: () => openPlayer(p.playerId, p.name),
-          }))}
-          empty="Todavía no hay deudas saldadas"
-          styles={styles}
-        />
-        <RankedCard
-          title="Más deben hoy"
-          rows={r.payers.filter(p => p.pendingAmount > 0).sort((a, b) => b.pendingAmount - a.pendingAmount).map(p => ({
-            key: p.playerId, name: p.name, value: formatMoney(p.pendingAmount), valueColor: C.red,
-            onPress: () => openPlayer(p.playerId, p.name),
-          }))}
-          empty="No hay deudas pendientes 🎉"
-          styles={styles}
-        />
-        <Text style={styles.footNote}>
-          {seasonId
-            ? 'Solo deudas generadas por partidas de esta temporada. Las compensadas entre varias partidas y las deudas previas no tienen temporada y no se incluyen.'
-            : 'Las deudas compensadas toman como fecha el momento de la compensación, así que los días hasta pagar son aproximados. No incluye deudas previas.'}
-        </Text>
-      </>
-    );
-  }
-
-  function renderTemporadas() {
-    return reports!.seasons.map(s => (
-      <Card key={s.seasonId}>
-        <View style={styles.seasonHeader}>
-          <Text style={styles.seasonName}>{s.name}</Text>
-          {s.status === 'active' && <Text style={[styles.seasonBadge, { color: C.green }]}>● Activa</Text>}
-        </View>
-        {s.champion ? (
-          <TouchableOpacity onPress={() => openPlayer(s.champion!.playerId, s.champion!.name)} activeOpacity={0.75}>
-            <Text style={styles.seasonChampion}>
-              🏆 {s.champion.name}{' '}
-              <Text style={{ color: s.champion.balance >= 0 ? C.green : C.red }}>{signed(s.champion.balance)}</Text>
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.rowDetail}>Sin partidas cerradas</Text>
-        )}
-        <Text style={styles.rowDetail}>
-          {plural(s.sessions, 'partida', 'partidas')} · pozo total {formatMoney(s.totalPot)} · {decimal(s.avgPlayers)} jugadores por partida
-        </Text>
-      </Card>
-    ));
-  }
-
-  const content = {
-    compras: renderCompras,
-    remontadas: renderRemontadas,
-    rendimiento: renderRendimiento,
-    partidas: renderPartidas,
-    deudas: renderDeudas,
-    temporadas: renderTemporadas,
-  }[tab];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
-          {tabs.map(t => (
+          {tabsFor(seasonId).map(t => (
             <TouchableOpacity
               key={t.key}
               onPress={() => setTab(t.key)}
               style={[styles.tab, tab === t.key && styles.tabActive]}
               activeOpacity={0.8}>
-              <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+              <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.icon} {t.label}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
-        <View key={tab}>{content()}</View>
+        <View key={tab}>{buildSections(tab, reports, seasonId).map(renderSection)}</View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -457,12 +160,14 @@ type Styles = ReturnType<typeof createStyles>;
 interface RankedCardProps {
   title: string;
   subtitle?: string;
-  rows: Row[];
+  rows: ReportRow[];
   empty?: string;
+  onOpenSession: (sessionId: string) => void;
   styles: Styles;
+  C: Colors;
 }
 
-function RankedCard({ title, subtitle, rows, empty = 'Sin datos todavía', styles }: RankedCardProps) {
+function RankedCard({ title, subtitle, rows, empty = 'Sin datos todavía', onOpenSession, styles, C }: RankedCardProps) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? rows : rows.slice(0, TOP_N);
   return (
@@ -470,21 +175,24 @@ function RankedCard({ title, subtitle, rows, empty = 'Sin datos todavía', style
       <Text style={styles.cardTitle}>{title}</Text>
       {subtitle && <Text style={styles.cardSubtitle}>{subtitle}</Text>}
       {rows.length === 0 && <Text style={styles.rowDetail}>{empty}</Text>}
-      {visible.map((row, idx) => (
-        <TouchableOpacity
-          key={row.key}
-          disabled={!row.onPress}
-          onPress={row.onPress}
-          activeOpacity={0.75}
-          style={[styles.rankRow, idx > 0 && styles.rankRowBorder]}>
-          <Text style={styles.rankPos}>{idx + 1}</Text>
-          <View style={styles.flex1}>
-            <Text style={styles.rowName} numberOfLines={1}>{row.name}</Text>
-            {row.detail ? <Text style={styles.rowDetail} numberOfLines={2}>{row.detail}</Text> : null}
-          </View>
-          <Text style={[styles.rowValue, row.valueColor ? { color: row.valueColor } : null]}>{row.value}</Text>
-        </TouchableOpacity>
-      ))}
+      {visible.map((row, idx) => {
+        const { sessionId } = row;
+        return (
+          <TouchableOpacity
+            key={row.key}
+            disabled={!sessionId}
+            onPress={sessionId ? () => onOpenSession(sessionId) : undefined}
+            activeOpacity={0.75}
+            style={[styles.rankRow, idx > 0 && styles.rankRowBorder]}>
+            <Text style={styles.rankPos}>{idx + 1}</Text>
+            <View style={styles.flex1}>
+              <Text style={styles.rowName} numberOfLines={1}>{row.name}</Text>
+              {row.detail ? <Text style={styles.rowDetail} numberOfLines={2}>{row.detail}</Text> : null}
+            </View>
+            <Text style={[styles.rowValue, { color: toneColor(C, row.tone) }]}>{row.value}</Text>
+          </TouchableOpacity>
+        );
+      })}
       {rows.length > TOP_N && (
         <TouchableOpacity onPress={() => setExpanded(e => !e)} style={styles.moreBtn}>
           <Text style={styles.moreText}>{expanded ? 'Ver menos' : `Ver todos (${rows.length})`}</Text>
@@ -494,14 +202,31 @@ function RankedCard({ title, subtitle, rows, empty = 'Sin datos todavía', style
   );
 }
 
-interface BarsCardProps {
-  title: string;
-  buckets: CountBucket[];
-  styles: Styles;
-  C: Colors;
+function StatsCard({ stats, note, styles, C }: { stats: ReportStat[]; note?: string; styles: Styles; C: Colors }) {
+  return (
+    <Card>
+      <View style={styles.statsRow}>
+        {stats.map((s, i) => (
+          <React.Fragment key={s.label}>
+            {i > 0 && <View style={styles.statDivider} />}
+            <View style={styles.statItem}>
+              <Text
+                style={[styles.statNum, s.tone ? { color: toneColor(C, s.tone) } : null]}
+                numberOfLines={1}
+                adjustsFontSizeToFit>
+                {s.value}
+              </Text>
+              <Text style={styles.statLabel}>{s.label}</Text>
+            </View>
+          </React.Fragment>
+        ))}
+      </View>
+      {note && <Text style={styles.cardNote}>{note}</Text>}
+    </Card>
+  );
 }
 
-function BarsCard({ title, buckets, styles, C }: BarsCardProps) {
+function BarsCard({ title, buckets, styles, C }: { title: string; buckets: CountBucket[]; styles: Styles; C: Colors }) {
   if (buckets.length === 0) return null;
   const max = Math.max(...buckets.map(b => b.count));
   return (
@@ -520,12 +245,25 @@ function BarsCard({ title, buckets, styles, C }: BarsCardProps) {
   );
 }
 
-function Stat({ value, label, color, styles }: { value: string; label: string; color?: string; styles: Styles }) {
+function SeasonCard({ season: s, styles, C }: { season: SeasonSummary; styles: Styles; C: Colors }) {
   return (
-    <View style={styles.statItem}>
-      <Text style={[styles.statNum, color ? { color } : null]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    <Card>
+      <View style={styles.seasonHeader}>
+        <Text style={styles.seasonName}>{s.name}</Text>
+        {s.status === 'active' && <Text style={[styles.seasonBadge, { color: C.green }]}>● Activa</Text>}
+      </View>
+      {s.champion ? (
+        <Text style={styles.seasonChampion}>
+          🏆 {s.champion.name}{' '}
+          <Text style={{ color: s.champion.balance >= 0 ? C.green : C.red }}>{signed(s.champion.balance)}</Text>
+        </Text>
+      ) : (
+        <Text style={styles.rowDetail}>Sin partidas cerradas</Text>
+      )}
+      <Text style={styles.rowDetail}>
+        {plural(s.sessions, 'partida', 'partidas')} · pozo total {formatMoney(s.totalPot)} · {decimal(s.avgPlayers)} jugadores por partida
+      </Text>
+    </Card>
   );
 }
 
@@ -536,6 +274,13 @@ function createStyles(C: Colors) {
     scrollContent: { padding: 16, paddingTop: 4 },
     flex1: { flex: 1 },
     mb10: { marginBottom: 10 },
+
+    // Exportar
+    exportBtn: {
+      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+      borderWidth: 1, borderColor: C.accent, minWidth: 52, alignItems: 'center',
+    },
+    exportText: { fontSize: 14, fontWeight: '800', color: C.accent },
 
     // Tabs
     tabs: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
@@ -559,7 +304,7 @@ function createStyles(C: Colors) {
     rankPos: { width: 18, fontSize: 14, fontWeight: '700', color: C.gray, textAlign: 'center' },
     rowName: { fontSize: 16, fontWeight: '700', color: C.white },
     rowDetail: { fontSize: 12, color: C.gray, marginTop: 2 },
-    rowValue: { fontSize: 16, fontWeight: '800', color: C.accent },
+    rowValue: { fontSize: 16, fontWeight: '800' },
     moreBtn: { paddingTop: 10, alignItems: 'center' },
     moreText: { fontSize: 14, fontWeight: '700', color: C.accent },
 
