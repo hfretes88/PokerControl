@@ -11,7 +11,7 @@ import type { Colors } from './UI';
 import { saveFile } from '../utils/saveFile';
 import type { Player, Session, Debt, Season } from '../storage/types';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 interface BackupData {
   poker_players: Player[];
