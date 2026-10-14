@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPlayerStats, deletePlayerAdjustment, updatePlayerAdjustment, getPlayers } from '../storage/storage';
+import { getPlayerReport } from '../storage/reports';
+import type { PlayerReport } from '../storage/reports';
 import { getDebtsForPlayer, addManualDebt, deleteManualDebt, markAsPaid, MANUAL_DEBT_SESSION_ID } from '../storage/debts';
 import type { PlayerStats, Debt, Player, PlayerAdjustment } from '../storage/types';
 import { Card, Btn, formatMoney } from '../components/UI';
@@ -25,6 +27,7 @@ export default function StatsScreen({ route }: ScreenProps<'Stats'>) {
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [report, setReport] = useState<PlayerReport | null>(null);
   const [manualDebts, setManualDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
   const [adjModal, setAdjModal] = useState(false);
@@ -42,11 +45,13 @@ export default function StatsScreen({ route }: ScreenProps<'Stats'>) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [data, { owes, owed }] = await Promise.all([
+    const [data, { owes, owed }, playerReport] = await Promise.all([
       getPlayerStats(playerId, seasonId),
       getDebtsForPlayer(playerId),
+      getPlayerReport(playerId, seasonId),
     ]);
     setStats(data);
+    setReport(playerReport);
     setManualDebts(
       [...owes, ...owed].filter(d => d.sessionId === MANUAL_DEBT_SESSION_ID && d.status !== 'paid')
     );
@@ -430,6 +435,64 @@ export default function StatsScreen({ route }: ScreenProps<'Stats'>) {
           </View>
         )}
 
+        {/* Compras y rachas */}
+        {report && (
+          <Card>
+            <Text style={styles.chartTitle}>Compras y rachas</Text>
+            <View style={[styles.statsRow, styles.reportRow]}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNum}>{report.avgBuysPerGame.toLocaleString('es-AR')}</Text>
+                <Text style={styles.statLabel}>Compras/partida</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNum}>{report.rebuyRate}%</Text>
+                <Text style={styles.statLabel}>Recompra</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statNum, { color: report.roi >= 0 ? C.green : C.red }]}>
+                  {report.roi > 0 ? '+' : ''}{report.roi}%
+                </Text>
+                <Text style={styles.statLabel}>Retorno</Text>
+              </View>
+            </View>
+            <View style={[styles.statsRow, styles.reportRow]}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statNum, { color: C.green }]}>{report.longestWinStreak}</Text>
+                <Text style={styles.statLabel}>Mejor racha</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statNum, { color: C.red }]}>{report.longestLossStreak}</Text>
+                <Text style={styles.statLabel}>Peor racha</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNum}>
+                  {report.currentStreak.count >= 2
+                    ? `${report.currentStreak.type === 'win' ? '🔥' : '🥶'} ${report.currentStreak.count}`
+                    : '—'}
+                </Text>
+                <Text style={styles.statLabel}>Racha actual</Text>
+              </View>
+            </View>
+            {report.lowestCumulative < 0 && (
+              <Text style={styles.reportNote}>
+                Peor momento: {formatMoney(report.lowestCumulative)}
+                {report.recoveries.length > 0
+                  ? ` · salió de negativo ${report.recoveries.length === 1 ? '1 vez' : `${report.recoveries.length} veces`}`
+                  : ''}
+              </Text>
+            )}
+            {report.nightComebacks > 0 && (
+              <Text style={styles.reportNote}>
+                Remontó en la noche {report.nightComebacks === 1 ? '1 vez' : `${report.nightComebacks} veces`} (recompró y terminó ganando)
+              </Text>
+            )}
+          </Card>
+        )}
+
         {/* Deudas previas (con contraparte) */}
         <View style={styles.adjSectionHeader}>
           <Text style={[styles.sectionTitle, styles.mb0]}>Deudas previas</Text>
@@ -573,6 +636,8 @@ function createStyles(C: Colors) {
     statNum: { fontSize: 22, fontWeight: '800', color: C.white },
     statLabel: { fontSize: 12, color: C.gray, marginTop: 2 },
     statDivider: { width: 1, height: 30, backgroundColor: C.cardBorder },
+    reportRow: { marginTop: 14 },
+    reportNote: { fontSize: 13, color: C.gray, marginTop: 12, textAlign: 'center' },
     row: { flexDirection: 'row', marginBottom: 4 },
     halfCard: { flex: 1, marginBottom: 12 },
     halfLabel: { fontSize: 13, color: C.gray, marginBottom: 6 },

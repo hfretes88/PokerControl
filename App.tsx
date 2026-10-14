@@ -13,6 +13,7 @@ import StatsScreen from './src/screens/StatsScreen';
 import DebtScreen from './src/screens/DebtScreen';
 import RankingScreen from './src/screens/RankingScreen';
 import PendingDebtsScreen from './src/screens/PendingDebtsScreen';
+import ReportsScreen from './src/screens/ReportsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -79,6 +80,13 @@ function AppNavigator() {
           name="PendingDebts"
           component={PendingDebtsScreen}
           options={{ title: '💳 Deudas pendientes' }}
+        />
+        <Stack.Screen
+          name="Reports"
+          component={ReportsScreen}
+          options={({ route }) => ({
+            title: route.params?.seasonName ? `📊 ${route.params.seasonName}` : '📊 Reportes históricos',
+          })}
         />
       </Stack.Navigator>
     </NavigationContainer>

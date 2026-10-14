@@ -14,6 +14,7 @@ export type RootStackParamList = {
   Debts: { session: Session };
   Ranking: { seasonId?: string; seasonName?: string } | undefined;
   PendingDebts: undefined;
+  Reports: { seasonId?: string; seasonName?: string } | undefined;
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<RootStackParamList, T>;

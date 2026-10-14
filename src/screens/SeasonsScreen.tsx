@@ -201,6 +201,15 @@ export default function SeasonsScreen({ navigation }: ScreenProps<'Seasons'>) {
         </View>
       </View>
 
+      <TouchableOpacity
+        style={[styles.rankingBtn, styles.reportsBtn]}
+        onPress={() => navigation.navigate('Reports')}
+        activeOpacity={0.8}>
+        <Text style={styles.rankingBtnIcon}>📊</Text>
+        <Text style={styles.rankingBtnText}>Ver reportes históricos</Text>
+        <Text style={styles.rankingBtnArrow}>›</Text>
+      </TouchableOpacity>
+
       {seasons.length > 1 && (
         <TouchableOpacity
           onPress={() => setSortAsc(v => !v)}
@@ -403,6 +412,7 @@ function createStyles(C: Colors) {
     },
     playersBtnText: { fontSize: 15, color: C.white, fontWeight: '600' },
     mr8: { marginRight: 8 },
+    reportsBtn: { marginHorizontal: 16, marginTop: 16, marginBottom: 0 },
     sortBtn: { paddingHorizontal: 16, paddingTop: 12 },
     sortBtnText: { fontSize: 13, color: C.accent, fontWeight: '600' },
     listContent: { padding: 16, flexGrow: 1 },
