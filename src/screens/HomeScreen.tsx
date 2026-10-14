@@ -114,14 +114,24 @@ export default function HomeScreen({ navigation, route }: ScreenProps<'SessionsL
         keyExtractor={item => item.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: fabBottom + 70 }]}
         ListHeaderComponent={
-          <TouchableOpacity
-            style={styles.rankingBtn}
-            onPress={() => navigation.navigate('Ranking', { seasonId, seasonName })}
-            activeOpacity={0.8}>
-            <Text style={styles.rankingBtnIcon}>🏆</Text>
-            <Text style={styles.rankingBtnText}>Ver ranking de esta temporada</Text>
-            <Text style={styles.rankingBtnArrow}>›</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={styles.rankingBtn}
+              onPress={() => navigation.navigate('Ranking', { seasonId, seasonName })}
+              activeOpacity={0.8}>
+              <Text style={styles.rankingBtnIcon}>🏆</Text>
+              <Text style={styles.rankingBtnText}>Ver ranking de esta temporada</Text>
+              <Text style={styles.rankingBtnArrow}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rankingBtn}
+              onPress={() => navigation.navigate('Reports', { seasonId, seasonName })}
+              activeOpacity={0.8}>
+              <Text style={styles.rankingBtnIcon}>📊</Text>
+              <Text style={styles.rankingBtnText}>Ver reportes de esta temporada</Text>
+              <Text style={styles.rankingBtnArrow}>›</Text>
+            </TouchableOpacity>
+          </>
         }
         ListEmptyComponent={
           // Empty state centrado verticalmente
