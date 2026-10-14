@@ -20,6 +20,22 @@ const CONTENT_W = PAGE_W - MARGIN * 2;
 /** Filas por sección en el PDF; el resto se resume en "y N más". */
 const MAX_ROWS = 15;
 
+// Alturas de cada bloque. Se usan tanto para dibujar como para medir una
+// sección antes de escribirla, así nunca queda cortada entre dos páginas.
+const SECTION_GAP = 22;
+const TITLE_H = 16;
+const SUBTITLE_H = 13;
+const HEAD_PAD = 6;
+const ROW_H = 20;
+const EMPTY_H = 15;
+const MORE_H = 14;
+const BAR_H = 15;
+const STATS_H = 35;
+const STATS_NOTE_H = 14;
+const SEASON_H = 49;
+const NOTE_SIZE = 8.5;
+const NOTE_LINE_H = NOTE_SIZE + 3;
+
 const INK = rgb(0.1, 0.13, 0.2);
 const GRAY = rgb(0.42, 0.47, 0.56);
 const LINE = rgb(0.86, 0.89, 0.93);
@@ -41,13 +57,13 @@ export function pdfText(s: string): string {
     .trim();
 }
 
-interface Fonts {
+export interface Fonts {
   regular: PDFFont;
   bold: PDFFont;
 }
 
 /** Cursor de escritura: maneja el salto de página automáticamente. */
-class Writer {
+export class Writer {
   page: PDFPage;
   y = PAGE_H - MARGIN;
 
@@ -61,11 +77,39 @@ class Writer {
     return page;
   }
 
+  newPage() {
+    this.page = this.addPage();
+    this.y = PAGE_H - MARGIN;
+  }
+
   ensure(height: number) {
-    if (this.y - height < MARGIN) {
-      this.page = this.addPage();
-      this.y = PAGE_H - MARGIN;
-    }
+    if (this.y - height < MARGIN) this.newPage();
+  }
+
+  /**
+   * Reserva lugar para un bloque que no se debe partir: si no entra junto con
+   * el espacio de separación, empieza en una página nueva (sin separación arriba).
+   */
+  startBlock(height: number, gap = SECTION_GAP) {
+    if (this.y - gap - height < MARGIN) this.newPage();
+    else this.y -= gap;
+  }
+
+  /** Corta un texto en líneas que entren en el ancho del contenido. */
+  wrap(text: string, size: number): string[] {
+    const lines: string[] = [];
+    let line = '';
+    pdfText(text).split(' ').forEach(word => {
+      const next = line ? `${line} ${word}` : word;
+      if (line && this.fonts.regular.widthOfTextAtSize(next, size) > CONTENT_W) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    });
+    if (line) lines.push(line);
+    return lines;
   }
 
   fit(text: string, size: number, maxWidth: number, bold = false): string {
@@ -88,20 +132,11 @@ class Writer {
 
   /** Párrafo con salto de línea por palabras. */
   paragraph(text: string, size: number, color: RGB) {
-    const words = pdfText(text).split(' ');
-    let line = '';
-    const flush = () => {
+    this.wrap(text, size).forEach(line => {
       this.ensure(size + 4);
       this.y -= size + 3;
       this.page.drawText(line, { x: MARGIN, y: this.y, size, font: this.fonts.regular, color });
-      line = '';
-    };
-    words.forEach(w => {
-      const next = line ? `${line} ${w}` : w;
-      if (this.fonts.regular.widthOfTextAtSize(next, size) > CONTENT_W && line) flush();
-      line = line ? `${line} ${w}` : w;
     });
-    if (line) flush();
   }
 
   rule() {
@@ -115,24 +150,23 @@ class Writer {
 // ─── Secciones ────────────────────────────────────────────────────────────────
 
 function writeRanked(w: Writer, section: Extract<ReportSection, { kind: 'ranked' }>) {
-  w.ensure(60);
-  w.y -= 16;
+  w.y -= TITLE_H;
   w.text(section.title, { size: 12, bold: true });
   if (section.subtitle) {
-    w.y -= 13;
+    w.y -= SUBTITLE_H;
     w.text(section.subtitle, { size: 8.5, color: GRAY });
   }
-  w.y -= 6;
+  w.y -= HEAD_PAD;
 
   if (section.rows.length === 0) {
-    w.y -= 13;
+    w.y -= EMPTY_H;
     w.text(section.empty ?? 'Sin datos todavía', { size: 9, color: GRAY });
     return;
   }
 
   section.rows.slice(0, MAX_ROWS).forEach((row: ReportRow, idx: number) => {
-    w.ensure(20);
-    w.y -= 15;
+    w.ensure(ROW_H);
+    w.y -= ROW_H - 5;
     w.text(String(idx + 1), { size: 9, color: GRAY });
     const valueWidth = 110;
     w.text(row.value, { size: 10, bold: true, color: toneColor(row.tone), alignRight: true, maxWidth: valueWidth });
@@ -146,13 +180,12 @@ function writeRanked(w: Writer, section: Extract<ReportSection, { kind: 'ranked'
   });
 
   if (section.rows.length > MAX_ROWS) {
-    w.y -= 12;
+    w.y -= MORE_H;
     w.text(`y ${section.rows.length - MAX_ROWS} más`, { x: MARGIN + 18, size: 8.5, color: GRAY });
   }
 }
 
 function writeStats(w: Writer, section: Extract<ReportSection, { kind: 'stats' }>) {
-  w.ensure(44);
   w.y -= 22;
   const colW = CONTENT_W / section.stats.length;
   section.stats.forEach((s, i) => {
@@ -163,24 +196,22 @@ function writeStats(w: Writer, section: Extract<ReportSection, { kind: 'stats' }
     w.text(s.label, { x: MARGIN + colW * i, size: 8.5, color: GRAY, maxWidth: colW - 8 });
   });
   if (section.note) {
-    w.y -= 14;
+    w.y -= STATS_NOTE_H;
     w.text(section.note, { size: 9, color: GRAY });
   }
 }
 
 function writeBars(w: Writer, section: Extract<ReportSection, { kind: 'bars' }>) {
   if (section.buckets.length === 0) return;
-  // Título + al menos 3 barras juntos, para no dejar el título solo al pie.
-  w.ensure(30 + 13 * Math.min(3, section.buckets.length));
-  w.y -= 16;
+  w.y -= TITLE_H;
   w.text(section.title, { size: 12, bold: true });
-  w.y -= 4;
+  w.y -= HEAD_PAD;
   const max = Math.max(...section.buckets.map(b => b.count));
   const labelW = 80;
   const trackW = CONTENT_W - labelW - 40;
   section.buckets.forEach(b => {
-    w.ensure(16);
-    w.y -= 13;
+    w.ensure(BAR_H);
+    w.y -= BAR_H;
     w.text(b.label, { size: 8.5, color: GRAY, maxWidth: labelW - 6 });
     w.page.drawRectangle({ x: MARGIN + labelW, y: w.y, width: trackW, height: 7, color: BAR_BG });
     w.page.drawRectangle({ x: MARGIN + labelW, y: w.y, width: Math.max(2, (b.count / max) * trackW), height: 7, color: ACCENT });
@@ -189,8 +220,8 @@ function writeBars(w: Writer, section: Extract<ReportSection, { kind: 'bars' }>)
 }
 
 function writeSeasons(w: Writer, section: Extract<ReportSection, { kind: 'seasons' }>) {
-  section.seasons.forEach(s => {
-    w.ensure(52);
+  section.seasons.forEach((s, i) => {
+    if (i > 0) w.startBlock(SEASON_H, 4);
     w.y -= 16;
     w.text(`${s.name}${s.status === 'active' ? ' (activa)' : ''}`, { size: 12, bold: true });
     w.y -= 14;
@@ -211,6 +242,41 @@ function writeSeasons(w: Writer, section: Extract<ReportSection, { kind: 'season
     w.y -= 6;
     w.rule();
   });
+}
+
+export function writeSection(w: Writer, section: ReportSection) {
+  switch (section.kind) {
+    case 'ranked': writeRanked(w, section); break;
+    case 'stats': writeStats(w, section); break;
+    case 'bars': writeBars(w, section); break;
+    case 'seasons': writeSeasons(w, section); break;
+    case 'note': w.paragraph(section.text, NOTE_SIZE, GRAY); break;
+  }
+}
+
+/**
+ * Alto que ocupa una sección, para decidir si entra en lo que queda de la
+ * página. En temporadas cuenta solo la primera: cada una es su propio bloque.
+ */
+export function sectionHeight(w: Writer, section: ReportSection): number {
+  switch (section.kind) {
+    case 'ranked': {
+      const rows = Math.min(section.rows.length, MAX_ROWS);
+      return TITLE_H
+        + (section.subtitle ? SUBTITLE_H : 0)
+        + HEAD_PAD
+        + (rows > 0 ? rows * ROW_H : EMPTY_H)
+        + (section.rows.length > MAX_ROWS ? MORE_H : 0);
+    }
+    case 'stats':
+      return STATS_H + (section.note ? STATS_NOTE_H : 0);
+    case 'bars':
+      return section.buckets.length > 0 ? TITLE_H + HEAD_PAD + section.buckets.length * BAR_H : 0;
+    case 'seasons':
+      return section.seasons.length > 0 ? SEASON_H : 0;
+    case 'note':
+      return w.wrap(section.text, NOTE_SIZE).length * NOTE_LINE_H;
+  }
 }
 
 // ─── Documento ────────────────────────────────────────────────────────────────
@@ -235,9 +301,14 @@ export async function buildReportsPdf(reports: Reports, seasonId?: string, seaso
   w.y -= 14;
   w.text(`${plural(reports.totalSessions, 'partida cerrada', 'partidas cerradas')} · generado el ${generated}`, { size: 9, color: GRAY });
 
-  tabsFor(seasonId).forEach(tab => {
-    w.ensure(80);
-    w.y -= 30;
+  tabsFor(seasonId).forEach((tab, tabIdx) => {
+    // Cada categoría empieza en una hoja nueva; la primera va debajo del encabezado.
+    if (tabIdx > 0) {
+      w.newPage();
+      w.y -= 13;
+    } else {
+      w.y -= 34;
+    }
     w.text(tab.label.toUpperCase(), { size: 13, bold: true, color: ACCENT });
     w.y -= 6;
     w.page.drawLine({
@@ -245,14 +316,11 @@ export async function buildReportsPdf(reports: Reports, seasonId?: string, seaso
       thickness: 1.2, color: ACCENT,
     });
 
-    buildSections(tab.key, reports, seasonId).forEach(section => {
-      switch (section.kind) {
-        case 'ranked': writeRanked(w, section); break;
-        case 'stats': writeStats(w, section); break;
-        case 'bars': writeBars(w, section); break;
-        case 'seasons': writeSeasons(w, section); break;
-        case 'note': w.y -= 4; w.paragraph(section.text, 8.5, GRAY); break;
-      }
+    buildSections(tab.key, reports, seasonId).forEach((section, sectionIdx) => {
+      const height = sectionHeight(w, section);
+      if (height === 0) return;
+      w.startBlock(height, sectionIdx === 0 ? 4 : SECTION_GAP);
+      writeSection(w, section);
     });
   });
 
