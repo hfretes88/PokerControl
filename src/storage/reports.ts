@@ -90,8 +90,28 @@ export interface PlayerReport {
   currentAttendanceStreak: number;
   attendanceRate: number;
 
+  // Tilt: partidas en las que compró TILT_BUYS o más veces
+  tiltGames: number;
+  tiltWins: number;
+  tiltBalance: number;
+
+  /** Resultado según el día de la semana (solo días en que jugó). */
+  weekdays: WeekdayResult[];
+
   history: PlayerGameEntry[];
 }
+
+export interface WeekdayResult {
+  day: number;
+  label: string;
+  games: number;
+  avgBalance: number;
+}
+
+/** Compras desde las que una noche cuenta como "tilt". */
+export const TILT_BUYS = 3;
+/** A partir de qué hora de partida una recompra es "tardía" (0 = primera hora). */
+export const LATE_REBUY_HOUR = 3;
 
 export interface GameResult extends SessionRef {
   playerId: string;
@@ -158,6 +178,68 @@ export interface SeasonSummary {
   champion: { playerId: string; name: string; balance: number } | null;
 }
 
+export interface RacePlayer {
+  playerId: string;
+  name: string;
+  /**
+   * Color del jugador en los gráficos: posición según la primera vez que jugó
+   * (en todas las partidas, no solo las del alcance), así no cambia de color
+   * al filtrar por temporada. El orden de color lo decide la pantalla.
+   */
+  slot: number;
+  /** Acumulado al final del alcance. */
+  final: number;
+}
+
+export interface RaceData {
+  sessions: SessionRef[];
+  /** Ordenados por acumulado final, de mayor a menor. */
+  players: RacePlayer[];
+  /** Acumulado por jugador después de cada partida (uno por partida). */
+  cumulative: Record<string, number[]>;
+  /** Balance de cada noche; null si ese jugador no jugó. */
+  nights: Record<string, Array<number | null>>;
+}
+
+export interface TiltBucket {
+  /** Cantidad de compras; el último cubo es "N o más". */
+  buys: number;
+  orMore: boolean;
+  games: number;
+  wins: number;
+  avgBalance: number;
+}
+
+/** Cómo le va a `name` cuando `withName` está en la mesa y cuando no. */
+export interface PresenceEffect {
+  playerId: string;
+  name: string;
+  withId: string;
+  withName: string;
+  gamesWith: number;
+  gamesWithout: number;
+  avgWith: number;
+  avgWithout: number;
+  diff: number;
+}
+
+export interface CrazyNight extends SessionRef {
+  /** Diferencia entre el que más ganó y el que más perdió. */
+  spread: number;
+  winner: { name: string; balance: number };
+  loser: { name: string; balance: number };
+  buyCount: number;
+}
+
+export interface LateRebuyStat {
+  /** Noches (jugador × partida) con alguna recompra desde LATE_REBUY_HOUR. */
+  games: number;
+  wins: number;
+  avgBalance: number;
+  /** Para comparar: % de noches ganadas en general. */
+  overallWinRate: number;
+}
+
 export interface Reports {
   totalSessions: number;
   players: PlayerReport[];
@@ -174,6 +256,14 @@ export interface Reports {
   payers: PayerStat[];
   debtSummary: DebtSummary;
   seasons: SeasonSummary[];
+
+  race: RaceData;
+  tilt: TiltBucket[];
+  presence: PresenceEffect[];
+  crazyNights: CrazyNight[];
+  /** Recompras (sin contar la primera compra) según la hora de partida. */
+  rebuysByGameHour: CountBucket[];
+  lateRebuys: LateRebuyStat;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -323,6 +413,20 @@ function buildPlayerReport(
     if (run.type === 'loss') longestLossStreak = Math.max(longestLossStreak, run.count);
   });
 
+  const tiltNights = history.filter(h => h.buyCount >= TILT_BUYS);
+
+  const byDay: Record<number, number[]> = {};
+  history.forEach(h => {
+    const day = new Date(h.date).getDay();
+    (byDay[day] = byDay[day] || []).push(h.balance);
+  });
+  const weekdays: WeekdayResult[] = Object.entries(byDay).map(([day, balances]) => ({
+    day: Number(day),
+    label: WEEKDAYS[Number(day)],
+    games: balances.length,
+    avgBalance: Math.round(balances.reduce((s, b) => s + b, 0) / balances.length),
+  }));
+
   return {
     playerId,
     name,
@@ -362,6 +466,12 @@ function buildPlayerReport(
     longestAttendanceStreak,
     currentAttendanceStreak: attendanceRun,
     attendanceRate: closed.length > 0 ? Math.round((games / closed.length) * 100) : 0,
+
+    tiltGames: tiltNights.length,
+    tiltWins: tiltNights.filter(h => h.balance > 0).length,
+    tiltBalance: tiltNights.reduce((s, h) => s + h.balance, 0),
+
+    weekdays,
 
     history,
   };
@@ -520,6 +630,164 @@ function buildSeasonSummaries(seasons: Season[], sessions: Session[]): SeasonSum
   });
 }
 
+// ─── Gráficos y reportes locos ────────────────────────────────────────────────
+
+/** Mínimo de partidas juntos y separados para medir el efecto presencia. */
+export const PRESENCE_MIN_WITH = 3;
+export const PRESENCE_MIN_WITHOUT = 2;
+const GAME_HOURS_CAP = 6;
+
+/**
+ * Posición de cada jugador según la primera partida cerrada en la que jugó,
+ * mirando todas las partidas (no solo el alcance) para que el color sea fijo.
+ */
+function colorSlots(sessions: Session[]): Record<string, number> {
+  const slots: Record<string, number> = {};
+  let next = 0;
+  closedSessionsInScope(sessions).forEach(s => playedParticipants(s).forEach(p => {
+    if (slots[p.playerId] === undefined) slots[p.playerId] = next++;
+  }));
+  return slots;
+}
+
+function buildRace(closed: Session[], names: Record<string, string>, slots: Record<string, number>): RaceData {
+  const ids = Object.keys(names);
+  const cumulative: Record<string, number[]> = {};
+  const nights: Record<string, Array<number | null>> = {};
+  const running: Record<string, number> = {};
+  ids.forEach(id => { cumulative[id] = []; nights[id] = []; running[id] = 0; });
+
+  closed.forEach(s => {
+    const played = new Map(playedParticipants(s).map(p => [p.playerId, calcParticipant(p).balance]));
+    ids.forEach(id => {
+      const balance = played.get(id);
+      running[id] += balance ?? 0;
+      cumulative[id].push(running[id]);
+      nights[id].push(balance ?? null);
+    });
+  });
+
+  return {
+    sessions: closed.map(toRef),
+    players: ids
+      .map(id => ({ playerId: id, name: names[id], slot: slots[id] ?? 0, final: running[id] }))
+      .sort((a, b) => b.final - a.final),
+    cumulative,
+    nights,
+  };
+}
+
+function buildTilt(results: GameResult[]): TiltBucket[] {
+  const buckets: TiltBucket[] = [];
+  for (let buys = 1; buys <= TILT_BUYS + 1; buys++) {
+    const orMore = buys === TILT_BUYS + 1;
+    const inBucket = results.filter(r => (orMore ? r.buyCount >= buys : r.buyCount === buys));
+    if (inBucket.length === 0) continue;
+    buckets.push({
+      buys,
+      orMore,
+      games: inBucket.length,
+      wins: inBucket.filter(r => r.balance > 0).length,
+      avgBalance: Math.round(inBucket.reduce((s, r) => s + r.balance, 0) / inBucket.length),
+    });
+  }
+  return buckets;
+}
+
+function buildPresence(closed: Session[], names: Record<string, string>): PresenceEffect[] {
+  const nights = closed.map(s => new Map(playedParticipants(s).map(p => [p.playerId, calcParticipant(p).balance])));
+  const ids = Object.keys(names);
+  const effects: PresenceEffect[] = [];
+  const avg = (xs: number[]) => Math.round(xs.reduce((s, x) => s + x, 0) / xs.length);
+
+  ids.forEach(playerId => ids.forEach(withId => {
+    if (playerId === withId) return;
+    const withBal: number[] = [];
+    const withoutBal: number[] = [];
+    nights.forEach(n => {
+      const balance = n.get(playerId);
+      if (balance === undefined) return;
+      (n.has(withId) ? withBal : withoutBal).push(balance);
+    });
+    if (withBal.length < PRESENCE_MIN_WITH || withoutBal.length < PRESENCE_MIN_WITHOUT) return;
+    const avgWith = avg(withBal);
+    const avgWithout = avg(withoutBal);
+    effects.push({
+      playerId, name: names[playerId], withId, withName: names[withId],
+      gamesWith: withBal.length, gamesWithout: withoutBal.length,
+      avgWith, avgWithout, diff: avgWith - avgWithout,
+    });
+  }));
+  return effects.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+}
+
+function buildCrazyNights(closed: Session[]): CrazyNight[] {
+  return closed
+    .map((s): CrazyNight | null => {
+      const played = playedParticipants(s).map(p => ({ name: p.name, balance: calcParticipant(p).balance }));
+      if (played.length < 2) return null;
+      const sorted = [...played].sort((a, b) => b.balance - a.balance);
+      const winner = sorted[0];
+      const loser = sorted[sorted.length - 1];
+      return {
+        ...toRef(s),
+        spread: winner.balance - loser.balance,
+        winner,
+        loser,
+        buyCount: s.participants.reduce((n, p) => n + p.buys.length, 0),
+      };
+    })
+    .filter((n): n is CrazyNight => n !== null)
+    .sort((a, b) => b.spread - a.spread);
+}
+
+/** Hora de partida (0 = primera) en la que se hizo una compra. */
+function gameHour(s: Session, timestamp: string): number {
+  return Math.floor(Math.max(0, minutesBetween(s.createdAt, timestamp)) / 60);
+}
+
+function buildRebuyRhythm(closed: Session[]): { buckets: CountBucket[]; late: LateRebuyStat } {
+  const counts: number[] = Array(GAME_HOURS_CAP).fill(0);
+  let lateGames = 0;
+  let lateWins = 0;
+  let lateBalance = 0;
+  let allGames = 0;
+  let allWins = 0;
+
+  closed.forEach(s => playedParticipants(s).forEach(p => {
+    const { balance } = calcParticipant(p);
+    allGames += 1;
+    if (balance > 0) allWins += 1;
+    const rebuys = [...p.buys]
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .slice(1);
+    rebuys.forEach(b => { counts[Math.min(gameHour(s, b.timestamp), GAME_HOURS_CAP - 1)] += 1; });
+    if (rebuys.some(b => gameHour(s, b.timestamp) >= LATE_REBUY_HOUR)) {
+      lateGames += 1;
+      lateBalance += balance;
+      if (balance > 0) lateWins += 1;
+    }
+  }));
+
+  const buckets = counts.map((count, h) => ({
+    key: String(h),
+    label: h === GAME_HOURS_CAP - 1 ? `${h + 1}ª hora +` : `${h + 1}ª hora`,
+    count,
+  }));
+  // Se recortan las horas vacías del final (partidas que nunca llegaron tan lejos).
+  while (buckets.length > 0 && buckets[buckets.length - 1].count === 0) buckets.pop();
+
+  return {
+    buckets,
+    late: {
+      games: lateGames,
+      wins: lateWins,
+      avgBalance: lateGames > 0 ? Math.round(lateBalance / lateGames) : 0,
+      overallWinRate: allGames > 0 ? Math.round((allWins / allGames) * 100) : 0,
+    },
+  };
+}
+
 // ─── Armado ───────────────────────────────────────────────────────────────────
 
 export function buildReports(
@@ -554,6 +822,7 @@ export function buildReports(
     .filter((m): m is number => m !== null && m > 0);
 
   const allBuys = closed.flatMap(s => s.participants.flatMap(p => p.buys));
+  const rhythm = buildRebuyRhythm(closed);
 
   // Las deudas son globales (no tienen temporada). Con temporada se limitan a
   // las generadas por sus partidas; las consolidadas y las previas quedan fuera.
@@ -585,6 +854,13 @@ export function buildReports(
     payers: buildPayers(scopedDebts),
     debtSummary: buildDebtSummary(scopedDebts),
     seasons: seasonId ? [] : buildSeasonSummaries(seasons, sessions),
+
+    race: buildRace(closed, names, colorSlots(sessions)),
+    tilt: buildTilt(results),
+    presence: buildPresence(closed, names),
+    crazyNights: buildCrazyNights(closed),
+    rebuysByGameHour: rhythm.buckets,
+    lateRebuys: rhythm.late,
   };
 }
 
