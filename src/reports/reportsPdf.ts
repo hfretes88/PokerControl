@@ -12,6 +12,8 @@ import { formatMoney } from '../components/UI';
 import type { Reports } from '../storage/reports';
 import { buildSections, tabsFor, decimal, signed, plural } from './reportSections';
 import type { ReportSection, ReportRow, Tone } from './reportSections';
+import { chartColors, divergingColor, hexToRgb, seriesColor } from '../theme/chartColors';
+import { niceTicks, shortMoney } from '../components/charts/scale';
 
 const PAGE_W = 595.28; // A4
 const PAGE_H = 841.89;
@@ -35,6 +37,22 @@ const STATS_NOTE_H = 14;
 const SEASON_H = 49;
 const NOTE_SIZE = 8.5;
 const NOTE_LINE_H = NOTE_SIZE + 3;
+const RACE_PLOT_H = 170;
+const RACE_AXIS_H = 14;
+const LEGEND_ROW_H = 14;
+const HEAT_CELL = 11;
+const HEAT_GAP = 1.5;
+const HEAT_LEGEND_H = 18;
+const SHARE_BAR_H = 26;
+const AWARD_H = 44;
+
+/** Los gráficos del PDF usan la paleta clara (se imprime sobre blanco). */
+const CHART = chartColors(false);
+
+function hexColor(hex: string): RGB {
+  const [r, g, b] = hexToRgb(hex);
+  return rgb(r / 255, g / 255, b / 255);
+}
 
 const INK = rgb(0.1, 0.13, 0.2);
 const GRAY = rgb(0.42, 0.47, 0.56);
@@ -67,7 +85,7 @@ export class Writer {
   page: PDFPage;
   y = PAGE_H - MARGIN;
 
-  constructor(private doc: PDFDocument, private fonts: Fonts, private footer: string) {
+  constructor(private doc: PDFDocument, readonly fonts: Fonts, private footer: string) {
     this.page = this.addPage();
   }
 
@@ -201,11 +219,166 @@ function writeStats(w: Writer, section: Extract<ReportSection, { kind: 'stats' }
   }
 }
 
+function writeHeading(w: Writer, title: string, subtitle?: string) {
+  w.y -= TITLE_H;
+  w.text(title, { size: 12, bold: true });
+  if (subtitle) {
+    w.y -= SUBTITLE_H;
+    w.text(subtitle, { size: 8.5, color: GRAY });
+  }
+  w.y -= HEAD_PAD;
+}
+
+const headingHeight = (subtitle?: string) => TITLE_H + (subtitle ? SUBTITLE_H : 0) + HEAD_PAD;
+
+/** Saca la indicación de tocar el gráfico, que en papel no aplica. */
+const printable = (subtitle: string) => subtitle.replace(/\s*·\s*tocá.*$/, '');
+
+function writeRace(w: Writer, section: Extract<ReportSection, { kind: 'race' }>) {
+  const { race } = section;
+  writeHeading(w, section.title, printable(section.subtitle));
+  const n = race.sessions.length;
+  const all = race.players.flatMap(p => race.cumulative[p.playerId]);
+  const ticks = niceTicks(Math.min(0, ...all), Math.max(0, ...all));
+  const yMin = ticks[0];
+  const yMax = ticks[ticks.length - 1];
+  const left = MARGIN + 34;
+  const plotW = CONTENT_W - 34;
+  const top = w.y;
+  const points = n === 1 ? 2 : n;
+  const toX = (i: number) => left + (i / Math.max(1, points - 1)) * plotW;
+  const toY = (v: number) => top - (1 - (v - yMin) / (yMax - yMin || 1)) * RACE_PLOT_H;
+
+  ticks.forEach(t => {
+    w.page.drawLine({
+      start: { x: left, y: toY(t) }, end: { x: left + plotW, y: toY(t) },
+      thickness: t === 0 ? 0.9 : 0.4, color: t === 0 ? GRAY : LINE,
+    });
+    const label = shortMoney(t);
+    w.page.drawText(label, {
+      x: left - 4 - w.fonts.regular.widthOfTextAtSize(label, 7.5), y: toY(t) - 2.5,
+      size: 7.5, font: w.fonts.regular, color: GRAY,
+    });
+  });
+  race.players.forEach(p => {
+    const values = n === 1 ? [0, ...race.cumulative[p.playerId]] : race.cumulative[p.playerId];
+    const color = hexColor(seriesColor(CHART, p.slot));
+    for (let i = 1; i < values.length; i++) {
+      w.page.drawLine({
+        start: { x: toX(i - 1), y: toY(values[i - 1]) }, end: { x: toX(i), y: toY(values[i]) },
+        thickness: 1.6, color,
+      });
+    }
+  });
+
+  w.y = top - RACE_PLOT_H - RACE_AXIS_H + 3;
+  w.text(race.sessions[0].sessionName, { x: left, size: 7.5, color: GRAY, maxWidth: plotW / 2 - 4 });
+  if (n > 1) w.text(race.sessions[n - 1].sessionName, { size: 7.5, color: GRAY, alignRight: true, maxWidth: plotW / 2 - 4 });
+  w.y -= 3;
+
+  race.players.forEach(p => {
+    w.y -= LEGEND_ROW_H;
+    w.page.drawRectangle({ x: MARGIN, y: w.y + 1, width: 12, height: 4, color: hexColor(seriesColor(CHART, p.slot)) });
+    w.text(p.name, { x: MARGIN + 18, size: 9, bold: true, maxWidth: 200 });
+    w.text(signed(p.final), { size: 9, bold: true, alignRight: true, maxWidth: 110, color: p.final >= 0 ? GREEN : RED });
+  });
+}
+
+function raceHeight(section: Extract<ReportSection, { kind: 'race' }>) {
+  return headingHeight(section.subtitle) + RACE_PLOT_H + RACE_AXIS_H + section.race.players.length * LEGEND_ROW_H;
+}
+
+function writeHeatmap(w: Writer, section: Extract<ReportSection, { kind: 'heatmap' }>) {
+  const { race } = section;
+  writeHeading(w, section.title, printable(section.subtitle));
+  const nameW = 70;
+  // Si hay muchas partidas se achican las celdas para que entren en el ancho.
+  const cols = race.sessions.length;
+  const cell = Math.min(HEAT_CELL, (CONTENT_W - nameW) / Math.max(1, cols) - HEAT_GAP);
+  const maxAbs = Math.max(0, ...race.players.flatMap(p => race.nights[p.playerId].map(v => Math.abs(v ?? 0))));
+
+  race.players.forEach(p => {
+    w.y -= HEAT_CELL + HEAT_GAP;
+    w.text(p.name, { size: 8.5, bold: true, color: GRAY, maxWidth: nameW - 6 });
+    race.nights[p.playerId].forEach((v, i) => {
+      const x = MARGIN + nameW + i * (cell + HEAT_GAP);
+      if (v === null) {
+        w.page.drawRectangle({ x, y: w.y - 2, width: cell, height: HEAT_CELL, borderColor: LINE, borderWidth: 0.6 });
+      } else {
+        w.page.drawRectangle({ x, y: w.y - 2, width: cell, height: HEAT_CELL, color: hexColor(divergingColor(CHART, v, maxAbs)) });
+      }
+    });
+  });
+
+  w.y -= HEAT_LEGEND_H;
+  w.text('Perdió', { x: MARGIN + nameW, size: 7.5, color: GRAY });
+  [-4, -3, -2, -1, 0, 1, 2, 3, 4].forEach((step, i) => {
+    w.page.drawRectangle({
+      x: MARGIN + nameW + 28 + i * 13, y: w.y - 1, width: 11, height: 7,
+      color: hexColor(divergingColor(CHART, step, 4)),
+    });
+  });
+  w.text('Ganó', { x: MARGIN + nameW + 28 + 9 * 13 + 4, size: 7.5, color: GRAY });
+}
+
+function heatmapHeight(section: Extract<ReportSection, { kind: 'heatmap' }>) {
+  return headingHeight(section.subtitle) + section.race.players.length * (HEAT_CELL + HEAT_GAP) + HEAT_LEGEND_H;
+}
+
+function writeShare(w: Writer, section: Extract<ReportSection, { kind: 'share' }>) {
+  writeHeading(w, section.title, section.subtitle);
+  const total = section.items.reduce((s, i) => s + i.amount, 0);
+  if (total === 0) return;
+  w.y -= SHARE_BAR_H - 8;
+  let x = MARGIN;
+  const items = section.items.filter(i => i.amount > 0);
+  const usable = CONTENT_W - (items.length - 1) * 2;
+  items.forEach(i => {
+    const width = (i.amount / total) * usable;
+    w.page.drawRectangle({ x, y: w.y, width, height: 12, color: hexColor(seriesColor(CHART, i.slot)) });
+    x += width + 2;
+  });
+  w.y -= 8;
+  section.items.forEach(i => {
+    w.y -= LEGEND_ROW_H;
+    w.page.drawRectangle({ x: MARGIN, y: w.y, width: 8, height: 8, color: hexColor(seriesColor(CHART, i.slot)) });
+    w.text(i.name, { x: MARGIN + 14, size: 9, bold: true, maxWidth: 200 });
+    w.text(formatMoney(i.amount), { x: PAGE_W - MARGIN - 160, size: 9, color: GRAY, maxWidth: 110 });
+    w.text(`${i.percent}%`, { size: 9, bold: true, alignRight: true, maxWidth: 40 });
+  });
+}
+
+function shareHeight(section: Extract<ReportSection, { kind: 'share' }>) {
+  return headingHeight(section.subtitle) + SHARE_BAR_H + section.items.length * LEGEND_ROW_H;
+}
+
+function writeAwards(w: Writer, section: Extract<ReportSection, { kind: 'awards' }>) {
+  writeHeading(w, section.title);
+  const colW = CONTENT_W / 2;
+  section.awards.forEach((a, i) => {
+    const col = i % 2;
+    if (col === 0) w.y -= AWARD_H;
+    const x = MARGIN + col * colW;
+    const baseY = w.y;
+    w.page.drawRectangle({
+      x, y: baseY, width: colW - 6, height: AWARD_H - 6, color: BAR_BG, borderColor: LINE, borderWidth: 0.5,
+    });
+    w.y = baseY + AWARD_H - 20;
+    w.text(a.title, { x: x + 8, size: 8.5, color: GRAY, maxWidth: colW - 100 });
+    w.text(a.value, { x: x + colW - 14, size: 9, bold: true, color: ACCENT, alignRight: true, maxWidth: 90 });
+    w.y -= 13;
+    w.text(a.name, { x: x + 8, size: 11, bold: true, maxWidth: colW - 24 });
+    w.y = baseY;
+  });
+}
+
+function awardsHeight(section: Extract<ReportSection, { kind: 'awards' }>) {
+  return section.awards.length > 0 ? headingHeight() + Math.ceil(section.awards.length / 2) * AWARD_H : 0;
+}
+
 function writeBars(w: Writer, section: Extract<ReportSection, { kind: 'bars' }>) {
   if (section.buckets.length === 0) return;
-  w.y -= TITLE_H;
-  w.text(section.title, { size: 12, bold: true });
-  w.y -= HEAD_PAD;
+  writeHeading(w, section.title, section.subtitle);
   const max = Math.max(...section.buckets.map(b => b.count));
   const labelW = 80;
   const trackW = CONTENT_W - labelW - 40;
@@ -251,6 +424,10 @@ export function writeSection(w: Writer, section: ReportSection) {
     case 'bars': writeBars(w, section); break;
     case 'seasons': writeSeasons(w, section); break;
     case 'note': w.paragraph(section.text, NOTE_SIZE, GRAY); break;
+    case 'race': writeRace(w, section); break;
+    case 'heatmap': writeHeatmap(w, section); break;
+    case 'share': writeShare(w, section); break;
+    case 'awards': writeAwards(w, section); break;
   }
 }
 
@@ -271,11 +448,19 @@ export function sectionHeight(w: Writer, section: ReportSection): number {
     case 'stats':
       return STATS_H + (section.note ? STATS_NOTE_H : 0);
     case 'bars':
-      return section.buckets.length > 0 ? TITLE_H + HEAD_PAD + section.buckets.length * BAR_H : 0;
+      return section.buckets.length > 0 ? headingHeight(section.subtitle) + section.buckets.length * BAR_H : 0;
     case 'seasons':
       return section.seasons.length > 0 ? SEASON_H : 0;
     case 'note':
       return w.wrap(section.text, NOTE_SIZE).length * NOTE_LINE_H;
+    case 'race':
+      return section.race.sessions.length > 0 ? raceHeight(section) : 0;
+    case 'heatmap':
+      return section.race.sessions.length > 0 ? heatmapHeight(section) : 0;
+    case 'share':
+      return section.items.length > 0 ? shareHeight(section) : 0;
+    case 'awards':
+      return awardsHeight(section);
   }
 }
 

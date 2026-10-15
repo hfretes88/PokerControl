@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,8 +8,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { getReports } from '../storage/reports';
 import type { Reports, CountBucket, SeasonSummary } from '../storage/reports';
-import { buildSections, tabsFor, decimal, signed, plural } from '../reports/reportSections';
-import type { ReportTab, ReportRow, ReportSection, ReportStat, Tone } from '../reports/reportSections';
+import { buildSections, tabsFor, decimal, signed, plural, awardsMessage, REPORT_TABS } from '../reports/reportSections';
+import type { ReportTab, ReportRow, ReportSection, ReportStat, Tone, Award } from '../reports/reportSections';
+import RaceChart from '../components/charts/RaceChart';
+import Heatmap from '../components/charts/Heatmap';
+import ShareBar from '../components/charts/ShareBar';
 import { buildReportsPdf } from '../reports/reportsPdf';
 import { saveFile } from '../utils/saveFile';
 import { Card, formatMoney } from '../components/UI';
@@ -30,7 +33,7 @@ export default function ReportsScreen({ navigation, route }: ScreenProps<'Report
   const { C } = useTheme();
   const styles = useMemo(() => createStyles(C), [C]);
   const [reports, setReports] = useState<Reports | null>(null);
-  const [tab, setTab] = useState<ReportTab>('compras');
+  const [tab, setTab] = useState<ReportTab>(REPORT_TABS[0].key);
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
@@ -123,11 +126,33 @@ export default function ReportsScreen({ navigation, route }: ScreenProps<'Report
       case 'stats':
         return <StatsCard key={idx} stats={section.stats} note={section.note} styles={styles} C={C} />;
       case 'bars':
-        return <BarsCard key={idx} title={section.title} buckets={section.buckets} styles={styles} C={C} />;
+        return (
+          <BarsCard key={idx} title={section.title} subtitle={section.subtitle} buckets={section.buckets} styles={styles} C={C} />
+        );
       case 'seasons':
         return section.seasons.map(s => <SeasonCard key={s.seasonId} season={s} styles={styles} C={C} />);
       case 'note':
         return <Text key={idx} style={styles.footNote}>{section.text}</Text>;
+      case 'race':
+        return (
+          <ChartCard key={idx} title={section.title} subtitle={section.subtitle} styles={styles}>
+            <RaceChart race={section.race} />
+          </ChartCard>
+        );
+      case 'heatmap':
+        return (
+          <ChartCard key={idx} title={section.title} subtitle={section.subtitle} styles={styles}>
+            <Heatmap race={section.race} />
+          </ChartCard>
+        );
+      case 'share':
+        return (
+          <ChartCard key={idx} title={section.title} subtitle={section.subtitle} styles={styles}>
+            <ShareBar items={section.items} />
+          </ChartCard>
+        );
+      case 'awards':
+        return <AwardsCard key={idx} title={section.title} awards={section.awards} scopeName={seasonName} styles={styles} />;
     }
   }
 
@@ -226,12 +251,56 @@ function StatsCard({ stats, note, styles, C }: { stats: ReportStat[]; note?: str
   );
 }
 
-function BarsCard({ title, buckets, styles, C }: { title: string; buckets: CountBucket[]; styles: Styles; C: Colors }) {
+function ChartCard({ title, subtitle, styles, children }: { title: string; subtitle: string; styles: Styles; children: React.ReactNode }) {
+  return (
+    <Card>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.cardSubtitle}>{subtitle}</Text>
+      {children}
+    </Card>
+  );
+}
+
+function AwardsCard({ title, awards, scopeName, styles }: { title: string; awards: Award[]; scopeName?: string; styles: Styles }) {
+  const share = async () => {
+    const url = `whatsapp://send?text=${encodeURIComponent(awardsMessage(awards, scopeName))}`;
+    if (await Linking.canOpenURL(url)) {
+      Linking.openURL(url);
+    } else {
+      Alert.alert('WhatsApp no disponible', 'No se encontró WhatsApp en este dispositivo.');
+    }
+  };
+  if (awards.length === 0) return null;
+  return (
+    <Card>
+      <View style={styles.awardsHeader}>
+        <Text style={styles.cardTitle}>🏆 {title}</Text>
+        <TouchableOpacity onPress={share} style={styles.shareBtn} activeOpacity={0.8}>
+          <Text style={styles.shareText}>Compartir</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.awardsGrid}>
+        {awards.map(a => (
+          <View key={a.key} style={styles.award}>
+            <Text style={styles.awardIcon}>{a.icon}</Text>
+            <Text style={styles.awardTitle} numberOfLines={1}>{a.title}</Text>
+            <Text style={styles.awardName} numberOfLines={1}>{a.name}</Text>
+            <Text style={styles.awardValue} numberOfLines={1}>{a.value}</Text>
+            <Text style={styles.awardDetail} numberOfLines={2}>{a.detail}</Text>
+          </View>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
+function BarsCard({ title, subtitle, buckets, styles, C }: { title: string; subtitle?: string; buckets: CountBucket[]; styles: Styles; C: Colors }) {
   if (buckets.length === 0) return null;
   const max = Math.max(...buckets.map(b => b.count));
   return (
     <Card>
-      <Text style={[styles.cardTitle, styles.mb10]}>{title}</Text>
+      <Text style={[styles.cardTitle, !subtitle && styles.mb10]}>{title}</Text>
+      {subtitle && <Text style={styles.cardSubtitle}>{subtitle}</Text>}
       {buckets.map(b => (
         <View key={b.key} style={styles.barRow}>
           <Text style={styles.barLabel} numberOfLines={1}>{b.label}</Text>
@@ -321,6 +390,21 @@ function createStyles(C: Colors) {
     statNum: { fontSize: 19, fontWeight: '800', color: C.white },
     statLabel: { fontSize: 12, color: C.gray, marginTop: 2 },
     statDivider: { width: 1, height: 30, backgroundColor: C.cardBorder },
+
+    // Premios
+    awardsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+    shareBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: C.green },
+    shareText: { fontSize: 13, fontWeight: '800', color: '#fff' },
+    awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    award: {
+      width: '48.5%', padding: 10, borderRadius: 10,
+      backgroundColor: C.neutralSoftBg, borderWidth: 1, borderColor: C.cardBorder,
+    },
+    awardIcon: { fontSize: 24 },
+    awardTitle: { fontSize: 12, fontWeight: '700', color: C.gray, marginTop: 4 },
+    awardName: { fontSize: 17, fontWeight: '800', color: C.white, marginTop: 2 },
+    awardValue: { fontSize: 14, fontWeight: '700', color: C.accent, marginTop: 2 },
+    awardDetail: { fontSize: 11, color: C.gray, marginTop: 4 },
 
     // Temporadas
     seasonHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },

@@ -5,11 +5,15 @@
  */
 
 import { formatMoney } from '../components/UI';
-import type { Reports, PlayerReport, CountBucket, SeasonSummary } from '../storage/reports';
+import { TILT_BUYS, LATE_REBUY_HOUR, PRESENCE_MIN_WITH } from '../storage/reports';
+import type { Reports, PlayerReport, CountBucket, SeasonSummary, RaceData } from '../storage/reports';
 
-export type ReportTab = 'compras' | 'remontadas' | 'rendimiento' | 'partidas' | 'deudas' | 'temporadas';
+export type ReportTab =
+  | 'graficos' | 'locos' | 'compras' | 'remontadas' | 'rendimiento' | 'partidas' | 'deudas' | 'temporadas';
 
 export const REPORT_TABS: Array<{ key: ReportTab; icon: string; label: string }> = [
+  { key: 'graficos', icon: '📊', label: 'Gráficos' },
+  { key: 'locos', icon: '🤪', label: 'Locos' },
   { key: 'compras', icon: '🪙', label: 'Compras' },
   { key: 'remontadas', icon: '📈', label: 'Remontadas' },
   { key: 'rendimiento', icon: '🎯', label: 'Rendimiento' },
@@ -39,12 +43,37 @@ export interface ReportStat {
   tone?: Tone;
 }
 
+export interface ShareItem {
+  playerId: string;
+  name: string;
+  /** Color del jugador (ver RacePlayer.slot). */
+  slot: number;
+  amount: number;
+  percent: number;
+}
+
+export interface Award {
+  key: string;
+  icon: string;
+  title: string;
+  name: string;
+  value: string;
+  detail: string;
+}
+
 export type ReportSection =
   | { kind: 'ranked'; title: string; subtitle?: string; rows: ReportRow[]; empty?: string }
   | { kind: 'stats'; stats: ReportStat[]; note?: string }
-  | { kind: 'bars'; title: string; buckets: CountBucket[] }
+  | { kind: 'bars'; title: string; subtitle?: string; buckets: CountBucket[] }
   | { kind: 'seasons'; seasons: SeasonSummary[] }
-  | { kind: 'note'; text: string };
+  | { kind: 'note'; text: string }
+  | { kind: 'race'; title: string; subtitle: string; race: RaceData }
+  | { kind: 'heatmap'; title: string; subtitle: string; race: RaceData }
+  | { kind: 'share'; title: string; subtitle: string; items: ShareItem[] }
+  | { kind: 'awards'; title: string; awards: Award[] };
+
+/** Partidas extra que se suponen para la proyección. */
+export const PROJECTION_GAMES = 10;
 
 // ─── Formato ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +98,69 @@ export function plural(n: number, one: string, many: string): string {
 
 const toneOf = (n: number): Tone => (n >= 0 ? 'positive' : 'negative');
 
+const percent = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
+
+/** El mejor según `score` (mayor gana); null si nadie califica. */
+function best(players: PlayerReport[], score: (p: PlayerReport) => number, qualifies: (p: PlayerReport) => boolean = () => true) {
+  return players.filter(qualifies).reduce<PlayerReport | null>((b, p) => (!b || score(p) > score(b) ? p : b), null);
+}
+
+export function buildAwards(reports: Reports): Award[] {
+  const players = reports.players;
+  const regulars = (p: PlayerReport) => p.games >= MIN_GAMES;
+  const awards: Award[] = [];
+  const add = (key: string, icon: string, title: string, p: PlayerReport | null, value: (p: PlayerReport) => string, detail: string) => {
+    if (p) awards.push({ key, icon, title, name: p.name, value: value(p), detail });
+  };
+
+  add('tiburon', '🦈', 'El Tiburón', best(players, p => p.balance, p => p.balance > 0),
+    p => signed(p.balance), 'El que más ganó');
+  add('banco', '🏦', 'El Banco', best(players, p => p.totalBought),
+    p => formatMoney(p.totalBought), 'El que más plata puso en fichas');
+  add('tilt', '🔥', 'Rey del Tilt', best(players, p => p.avgBuysPerGame, p => regulars(p) && p.avgBuysPerGame > 1),
+    p => `${decimal(p.avgBuysPerGame)} compras`, 'Más compras promedio por noche');
+  add('sangre-fria', '🧊', 'Sangre Fría', best(players, p => -p.volatility, regulars),
+    p => `±${formatMoney(p.volatility)}`, 'El resultado más parejo noche a noche');
+  add('remontada', '🪃', 'Rey de la Remontada', best(players, p => p.comebackAmount, p => p.comebackAmount > 0),
+    p => signed(p.comebackAmount), 'Lo que recuperó desde su peor momento');
+  add('mufa', '🥶', 'La Mufa', best(players, p => p.longestLossStreak, p => p.longestLossStreak >= 2),
+    p => `${p.longestLossStreak} seguidas`, 'La racha perdedora más larga');
+  add('fiel', '🫡', 'El Fiel', best(players, p => p.attendanceRate * 1000 + p.longestAttendanceStreak),
+    p => `${p.attendanceRate}%`, 'El que menos faltó');
+  add('fantasma', '👻', 'El Fantasma', best(players, p => -p.attendanceRate, p => p.attendanceRate < 100),
+    p => `${p.attendanceRate}%`, 'El que más faltó');
+
+  const moroso = reports.payers.filter(p => p.pendingAmount > 0).sort((a, b) => b.pendingAmount - a.pendingAmount)[0];
+  if (moroso) {
+    awards.push({
+      key: 'moroso', icon: '🐢', title: 'El Moroso', name: moroso.name,
+      value: formatMoney(moroso.pendingAmount), detail: 'El que más debe hoy',
+    });
+  }
+  return awards;
+}
+
+/** Texto de los premios para compartir por WhatsApp. */
+export function awardsMessage(awards: Award[], scopeName?: string): string {
+  const lines = awards.map(a => `${a.icon} *${a.title}*: ${a.name} (${a.value})`);
+  return [`🏆 *Premios ${scopeName ? `de ${scopeName}` : 'históricos'}* — PokerControl`, '', ...lines].join('\n');
+}
+
+function buildShare(reports: Reports): ShareItem[] {
+  const total = reports.players.reduce((s, p) => s + p.totalBought, 0);
+  const slots = new Map(reports.race.players.map(p => [p.playerId, p.slot]));
+  return [...reports.players]
+    .sort((a, b) => b.totalBought - a.totalBought)
+    .map(p => ({
+      playerId: p.playerId, name: p.name, slot: slots.get(p.playerId) ?? 0,
+      amount: p.totalBought, percent: percent(p.totalBought, total),
+    }));
+}
+
+function tiltLabel(buys: number, orMore: boolean): string {
+  return orMore ? `${buys} o más compras` : plural(buys, 'compra', 'compras');
+}
+
 // ─── Secciones ────────────────────────────────────────────────────────────────
 
 export function tabsFor(seasonId?: string) {
@@ -84,6 +176,157 @@ export function buildSections(tab: ReportTab, reports: Reports, seasonId?: strin
     players.filter(filter).sort(sort);
 
   switch (tab) {
+    case 'graficos': {
+      const late = reports.lateRebuys;
+      return [
+        {
+          kind: 'race',
+          title: 'La carrera',
+          subtitle: 'Balance acumulado de cada jugador, partida a partida · tocá el gráfico',
+          race: reports.race,
+        },
+        {
+          kind: 'heatmap',
+          title: 'Mapa de calor',
+          subtitle: 'Cuánto ganó (azul) o perdió (rojo) cada uno por noche · vacío = no jugó',
+          race: reports.race,
+        },
+        {
+          kind: 'share',
+          title: '¿Quién financia la mesa?',
+          subtitle: 'Parte de todo lo comprado en fichas que puso cada uno',
+          items: buildShare(reports),
+        },
+        {
+          kind: 'bars',
+          title: 'Ritmo de la noche',
+          subtitle: 'Recompras según la hora de partida (sin contar la primera compra)',
+          buckets: reports.rebuysByGameHour,
+        },
+        {
+          kind: 'stats',
+          stats: [
+            { label: 'Noches', value: String(late.games) },
+            {
+              label: 'Ganaron',
+              value: late.games > 0 ? `${percent(late.wins, late.games)}%` : '—',
+              tone: late.games > 0 ? toneOf(percent(late.wins, late.games) - late.overallWinRate) : undefined,
+            },
+            { label: 'Promedio', value: late.games > 0 ? signed(late.avgBalance) : '—', tone: late.games > 0 ? toneOf(late.avgBalance) : undefined },
+          ],
+          note: `Noches con alguna recompra desde la ${LATE_REBUY_HOUR + 1}ª hora. En general se gana el ${late.overallWinRate}% de las noches.`,
+        },
+      ];
+    }
+
+    case 'locos': {
+      const regulars = players.filter(p => p.games >= MIN_GAMES);
+      const luckyDay = (p: PlayerReport) =>
+        p.weekdays.filter(d => d.games >= 2).reduce<PlayerReport['weekdays'][number] | null>(
+          (b, d) => (!b || d.avgBalance > b.avgBalance ? d : b), null);
+      const unluckyDay = (p: PlayerReport) =>
+        p.weekdays.filter(d => d.games >= 2).reduce<PlayerReport['weekdays'][number] | null>(
+          (b, d) => (!b || d.avgBalance < b.avgBalance ? d : b), null);
+      const dayRows = (pick: typeof luckyDay, sign: 1 | -1) => players
+        .map(p => ({ p, d: pick(p) }))
+        .filter((x): x is { p: PlayerReport; d: NonNullable<ReturnType<typeof luckyDay>> } =>
+          x.d !== null && x.p.weekdays.filter(d => d.games >= 2).length >= 2)
+        .sort((a, b) => sign * (b.d.avgBalance - a.d.avgBalance))
+        .map(({ p, d }) => row(p, `${d.label}`, `Promedio ${signed(d.avgBalance)} en ${plural(d.games, 'partida', 'partidas')}`, toneOf(d.avgBalance)));
+      const presenceRow = (e: Reports['presence'][number]) => ({
+        key: `${e.withId}-${e.playerId}`,
+        name: `${e.withName} → ${e.name}`,
+        value: signed(e.diff),
+        tone: toneOf(e.diff),
+        detail: `Con ${e.withName}: ${signed(e.avgWith)} (${e.gamesWith}) · sin: ${signed(e.avgWithout)} (${e.gamesWithout})`,
+      });
+
+      return [
+        { kind: 'awards', title: 'Premios', awards: buildAwards(reports) },
+        {
+          kind: 'ranked',
+          title: 'Proyección',
+          subtitle: `Si se juegan ${PROJECTION_GAMES} partidas más a este ritmo (mín. ${MIN_GAMES} partidas)`,
+          empty: `Nadie tiene ${MIN_GAMES} partidas todavía`,
+          rows: regulars
+            .map(p => ({ p, projected: Math.round(p.balance + p.avgBalance * (p.attendanceRate / 100) * PROJECTION_GAMES) }))
+            .sort((a, b) => b.projected - a.projected)
+            .map(({ p, projected }) => row(p, signed(projected), `Hoy ${signed(p.balance)} · ${signed(p.avgBalance)} por partida`, toneOf(projected))),
+        },
+        {
+          kind: 'ranked',
+          title: 'Amuletos 🍀',
+          subtitle: `A quién le va mejor cuando está el otro en la mesa (mín. ${PRESENCE_MIN_WITH} partidas juntos)`,
+          empty: 'Todavía no hay suficientes partidas para medirlo',
+          rows: reports.presence.filter(e => e.diff > 0).map(presenceRow),
+        },
+        {
+          kind: 'ranked',
+          title: 'Mufas 🐈‍⬛',
+          subtitle: 'A quién le va peor cuando está el otro en la mesa',
+          empty: 'Todavía no hay suficientes partidas para medirlo',
+          rows: reports.presence.filter(e => e.diff < 0).map(presenceRow),
+        },
+        {
+          kind: 'ranked',
+          title: 'Medidor de tilt',
+          subtitle: 'Cómo terminan las noches según cuántas veces se compró',
+          rows: reports.tilt.map(t => ({
+            key: String(t.buys),
+            name: tiltLabel(t.buys, t.orMore),
+            value: `${percent(t.wins, t.games)}% ganadas`,
+            tone: toneOf(t.avgBalance),
+            detail: `Promedio ${signed(t.avgBalance)} · ${plural(t.games, 'noche', 'noches')}`,
+          })),
+        },
+        {
+          kind: 'ranked',
+          title: 'En tilt',
+          subtitle: `Cómo le va a cada uno las noches que compra ${TILT_BUYS} o más veces`,
+          empty: `Nadie compró ${TILT_BUYS} o más veces en una noche`,
+          rows: ranked(p => p.tiltGames > 0, (a, b) => a.tiltWins / a.tiltGames - b.tiltWins / b.tiltGames || a.tiltBalance - b.tiltBalance)
+            .map(p => row(
+              p,
+              `${p.tiltWins} de ${p.tiltGames}`,
+              `Ganó ${percent(p.tiltWins, p.tiltGames)}% · total ${signed(p.tiltBalance)}`,
+              toneOf(p.tiltBalance),
+            )),
+        },
+        {
+          kind: 'ranked',
+          title: 'Día de suerte',
+          subtitle: 'El día de la semana en que mejor le va (mín. 2 partidas ese día)',
+          empty: 'Nadie jugó 2 o más veces en dos días distintos',
+          rows: dayRows(luckyDay, 1),
+        },
+        {
+          kind: 'ranked',
+          title: 'Día de mufa',
+          subtitle: 'El día de la semana en que peor le va',
+          empty: 'Nadie jugó 2 o más veces en dos días distintos',
+          rows: dayRows(unluckyDay, -1),
+        },
+        {
+          kind: 'ranked',
+          title: 'Las noches más locas',
+          subtitle: 'Mayor diferencia entre el que más ganó y el que más perdió',
+          rows: reports.crazyNights.map(n => ({
+            key: n.sessionId, name: n.sessionName, value: formatMoney(n.spread), sessionId: n.sessionId,
+            detail: `${n.winner.name} ${signed(n.winner.balance)} · ${n.loser.name} ${signed(n.loser.balance)}`,
+          })),
+        },
+        {
+          kind: 'ranked',
+          title: 'La noche de las recompras',
+          subtitle: 'Partidas con más compras de fichas',
+          rows: [...reports.crazyNights].sort((a, b) => b.buyCount - a.buyCount).map(n => ({
+            key: n.sessionId, name: n.sessionName, value: String(n.buyCount), sessionId: n.sessionId,
+            detail: new Date(n.date).toLocaleDateString('es-AR'),
+          })),
+        },
+      ];
+    }
+
     case 'compras':
       return [
         {
